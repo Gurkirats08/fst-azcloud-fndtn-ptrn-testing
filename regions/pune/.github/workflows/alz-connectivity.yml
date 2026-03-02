@@ -1,4 +1,4 @@
-name: ALZ Shared Services Deployment
+name: ALZ Connectivity Deployment
 
 on:
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -60,16 +60,16 @@ jobs:
         run: terraform init -backend-config="backend.tfvars"
 
       - name: Terraform Format
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         continue-on-error: true
         run: terraform fmt -recursive
 
       - name: Terraform Validate
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         run: terraform validate
 
       - name: Terraform Plan
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         timeout-minutes: 30
         env:
           ARM_USE_OIDC: true
@@ -80,10 +80,10 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
-          if [ -f "${{ github.event.inputs.environment }}-sharedservices.tfvars" ]; then
-            TFVARS_FILE="${{ github.event.inputs.environment }}-sharedservices.tfvars"
+          if [ -f "${{ github.event.inputs.environment }}-connectivity.tfvars" ]; then
+            TFVARS_FILE="${{ github.event.inputs.environment }}-connectivity.tfvars"
           else
-            TFVARS_FILE="sharedservices.tfvars"
+            TFVARS_FILE="connectivity.tfvars"
           fi
 
           echo "Using tfvars file: $TFVARS_FILE"
@@ -94,7 +94,7 @@ jobs:
             echo "Terraform plan attempt $((RETRY + 1))/$MAX_RETRIES"
             terraform plan \
               -var-file="$TFVARS_FILE" \
-              -out=tfplan-sharedservices && break
+              -out=tfplan-connectivity && break
             RETRY=$((RETRY + 1))
             if [ $RETRY -lt $MAX_RETRIES ]; then
               echo "Plan failed, waiting 30 seconds before retry..."
@@ -110,8 +110,8 @@ jobs:
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-sharedservices
-          path: ./platform-sharedservices-alz-deployment/sharedservices/tfplan-sharedservices
+          name: tfplan-connectivity
+          path: ./platform-connectivity-alz-deployment/connectivity/tfplan-connectivity
           retention-days: 7
 
   approval:
@@ -123,7 +123,7 @@ jobs:
     steps:
       - name: Approval Checkpoint
         run: |
-          echo "✅ Approval granted for shared services deployment to ${{ github.event.inputs.environment }}"
+          echo "✅ Approval granted for connectivity deployment to ${{ github.event.inputs.environment }}"
 
   terraform-apply:
     needs: approval
@@ -151,11 +151,11 @@ jobs:
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-sharedservices
-          path: ./platform-sharedservices-alz-deployment/sharedservices
+          name: tfplan-connectivity
+          path: ./platform-connectivity-alz-deployment/connectivity
 
       - name: Terraform Init
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -168,7 +168,7 @@ jobs:
 
       - name: Terraform Apply
         timeout-minutes: 60
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -178,8 +178,8 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
-          if [ -f "tfplan-sharedservices" ]; then
-            terraform apply -auto-approve "tfplan-sharedservices"
+          if [ -f "tfplan-connectivity" ]; then
+            terraform apply -auto-approve "tfplan-connectivity"
           else
             echo "❌ Plan file not found. Skipping apply."
             exit 1
@@ -209,7 +209,7 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Terraform Init
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -222,7 +222,7 @@ jobs:
 
       - name: Terraform Destroy
         timeout-minutes: 60
-        working-directory: ./platform-sharedservices-alz-deployment/sharedservices
+        working-directory: ./platform-connectivity-alz-deployment/connectivity
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -232,10 +232,10 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
-          if [ -f "${{ github.event.inputs.environment }}-sharedservices.tfvars" ]; then
-            TFVARS_FILE="${{ github.event.inputs.environment }}-sharedservices.tfvars"
+          if [ -f "${{ github.event.inputs.environment }}-connectivity.tfvars" ]; then
+            TFVARS_FILE="${{ github.event.inputs.environment }}-connectivity.tfvars"
           else
-            TFVARS_FILE="sharedservices.tfvars"
+            TFVARS_FILE="connectivity.tfvars"
           fi
 
           terraform destroy -auto-approve -var-file="$TFVARS_FILE"
@@ -247,7 +247,7 @@ jobs:
     steps:
       - name: Generate Deployment Summary
         run: |
-          echo "## 🎯 ALZ Shared Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## 🎯 ALZ Connectivity Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
           echo "**Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
