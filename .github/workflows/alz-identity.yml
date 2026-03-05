@@ -1,4 +1,4 @@
-name: ALZ Shared Services Deployment
+name: ALZ Identity Deployment
 
 on:
   workflow_dispatch:
@@ -21,13 +21,12 @@ on:
           - destroy
 
 jobs:
-  deploy-sharedservices:
+  deploy-identity:
     uses: ./.github/workflows/alz-run-all.yml
     with:
-      subscription_name: sharedservices
+      subscription_name: identity
       terraform_action: ${{ github.event.inputs.action }}
       environment: ${{ github.event.inputs.environment }}
-      terraform_root: alz-platform/pattern1/sharedservices
-      tfvars_file: alz-platform-vars/pattern1/sharedservices.tfvars
+      terraform_root: alz-platform/pattern1/identity_dev
+      tfvars_file: alz-platform-vars/pattern1/identity.tfvars
     secrets: inherit
-

@@ -1,0 +1,355 @@
+name: ALZ Deploy Subscription
+
+on:
+  workflow_dispatch:
+    inputs:
+      subscription:
+        description: Select Subscription
+        required: true
+        default: connectivity
+        type: choice
+        options:
+          - connectivity
+          - identity
+          - management
+          - security
+          - sharedservices
+      environment:
+        description: Select Environment
+        required: true
+        default: NonProduction
+        type: choice
+        options:
+          - NonProduction
+      action:
+        description: Terraform Action
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+  
+  workflow_call:
+    inputs:
+      subscription_name:
+        description: Subscription/workload label used for artifact naming and summary
+        required: true
+        type: string
+      terraform_action:
+        description: Terraform operation to run
+        required: true
+        type: string
+      environment:
+        description: GitHub Environment name used for approval gates
+        required: true
+        type: string
+      goldrepo_repository:
+        description: GitHub repo containing shared Terraform root modules/main.tf
+        required: false
+        type: string
+        default: Gurkirats08/fst-azcloud-goldrepo-testing
+      goldrepo_ref:
+        description: Branch/tag/SHA to checkout from gold repo
+        required: false
+        type: string
+        default: main
+      terraform_root:
+        description: Terraform root folder path inside the gold repo
+        required: true
+        type: string
+      tfvars_file:
+        description: tfvars file path inside this ptrn repo
+        required: true
+        type: string
+
+env:
+  TERRAFORM_VERSION: "1.6.0"
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+  GOLDREPO_REPOSITORY: Gurkirats08/fst-azcloud-goldrepo-testing
+  GOLDREPO_REF: main
+
+jobs:
+  terraform-plan:
+    if: ${{ (github.event.inputs.action == 'plan' || github.event.inputs.action == 'apply') || (inputs.terraform_action == 'plan' || inputs.terraform_action == 'apply') }}
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Set Subscription Paths
+        id: paths
+        run: |
+          # For workflow_call, use inputs directly
+          if [ "${{ github.event_name }}" == "workflow_call" ]; then
+            echo "subscription_name=${{ inputs.subscription_name }}" >> $GITHUB_OUTPUT
+            echo "terraform_root=${{ inputs.terraform_root }}" >> $GITHUB_OUTPUT
+            echo "tfvars_file=${{ inputs.tfvars_file }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_repository=${{ inputs.goldrepo_repository }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_ref=${{ inputs.goldrepo_ref }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # For workflow_dispatch, map subscription to paths
+            echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_repository=${{ env.GOLDREPO_REPOSITORY }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_ref=${{ env.GOLDREPO_REF }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            
+            case "${{ github.event.inputs.subscription }}" in
+              connectivity)
+                echo "terraform_root=alz-platform/pattern1/connectivity" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/connectivity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              identity)
+                echo "terraform_root=alz-platform/pattern1/identity_dev" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/identity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              management)
+                echo "terraform_root=alz-platform/pattern1/management" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/management.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              security)
+                echo "terraform_root=alz-platform/pattern1/security" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/security.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              sharedservices)
+                echo "terraform_root=alz-platform/pattern1/sharedservices" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/sharedservices.tfvars" >> $GITHUB_OUTPUT
+                ;;
+            esac
+          fi
+
+      - name: Checkout ptrn repo (tfvars)
+        uses: actions/checkout@v4
+        with:
+          path: ptrn
+
+      - name: Checkout gold repo (terraform root)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.paths.outputs.goldrepo_repository }}
+          ref: ${{ steps.paths.outputs.goldrepo_ref }}
+          token: ${{ secrets.GOLDREPO_PAT || secrets.GITHUB_TOKEN }}
+          path: goldrepo
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ -f "backend.tfvars" ]; then
+            terraform init -backend-config="backend.tfvars"
+          else
+            terraform init
+          fi
+
+      - name: Terraform Validate
+        working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          terraform plan \
+            -var-file="${{ github.workspace }}/ptrn/${{ steps.paths.outputs.tfvars_file }}" \
+            -out="tfplan-${{ steps.paths.outputs.subscription_name }}"
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ steps.paths.outputs.subscription_name }}-${{ github.run_id }}
+          path: ./goldrepo/${{ steps.paths.outputs.terraform_root }}/tfplan-${{ steps.paths.outputs.subscription_name }}
+          retention-days: 7
+
+  approval-apply:
+    if: ${{ (github.event.inputs.action == 'apply') || (inputs.terraform_action == 'apply') }}
+    needs: [terraform-plan]
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment || inputs.environment }}
+    steps:
+      - name: Approval Checkpoint
+        run: echo "Approval granted for apply action"
+
+  terraform-apply:
+    if: ${{ (github.event.inputs.action == 'apply') || (inputs.terraform_action == 'apply') }}
+    needs: [approval-apply]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Set Subscription Paths
+        id: paths
+        run: |
+          # For workflow_call, use inputs directly
+          if [ "${{ github.event_name }}" == "workflow_call" ]; then
+            echo "subscription_name=${{ inputs.subscription_name }}" >> $GITHUB_OUTPUT
+            echo "terraform_root=${{ inputs.terraform_root }}" >> $GITHUB_OUTPUT
+            echo "tfvars_file=${{ inputs.tfvars_file }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_repository=${{ inputs.goldrepo_repository }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_ref=${{ inputs.goldrepo_ref }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # For workflow_dispatch, map subscription to paths
+            echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_repository=${{ env.GOLDREPO_REPOSITORY }}" >> $GITHUB_OUTPUT
+            echo "goldrepo_ref=${{ env.GOLDREPO_REF }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            
+            case "${{ github.event.inputs.subscription }}" in
+              connectivity)
+                echo "terraform_root=alz-platform/pattern1/connectivity" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/connectivity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              identity)
+                echo "terraform_root=alz-platform/pattern1/identity_dev" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/identity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              management)
+                echo "terraform_root=alz-platform/pattern1/management" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/management.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              security)
+                echo "terraform_root=alz-platform/pattern1/security" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/security.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              sharedservices)
+                echo "terraform_root=alz-platform/pattern1/sharedservices" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/sharedservices.tfvars" >> $GITHUB_OUTPUT
+                ;;
+            esac
+          fi
+
+      - name: Checkout ptrn repo (tfvars)
+        uses: actions/checkout@v4
+        with:
+          path: ptrn
+
+      - name: Checkout gold repo (terraform root)
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GOLDREPO_REPOSITORY }}
+          ref: ${{ env.GOLDREPO_REF }}
+          token: ${{ secrets.GOLDREPO_PAT || secrets.GITHUB_TOKEN }}
+          path: goldrepo
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ steps.paths.outputs.subscription_name }}-${{ github.run_id }}
+          path: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+
+      - name: Terraform Init
+        working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [ -f "backend.tfvars" ]; then
+            terraform init -backend-config="backend.tfvars"
+          else
+            terraform init
+          fi
+
+      - name: Terraform Apply
+        working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: terraform apply -auto-approve "tfplan-${{ steps.paths.outputs.subscription_name }}"
+
+  deployment-summary:
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [terraform-plan]
+    steps:
+      - name: Set Subscription Paths
+        id: paths
+        run: |
+          # For workflow_call, use inputs directly
+          if [ "${{ github.event_name }}" == "workflow_call" ]; then
+            echo "subscription_name=${{ inputs.subscription_name }}" >> $GITHUB_OUTPUT
+            echo "terraform_root=${{ inputs.terraform_root }}" >> $GITHUB_OUTPUT
+            echo "tfvars_file=${{ inputs.tfvars_file }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            # For workflow_dispatch, map subscription to paths
+            echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
+            echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
+            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            
+            case "${{ github.event.inputs.subscription }}" in
+              connectivity)
+                echo "terraform_root=alz-platform/pattern1/connectivity" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/connectivity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              identity)
+                echo "terraform_root=alz-platform/pattern1/identity_dev" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/identity.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              management)
+                echo "terraform_root=alz-platform/pattern1/management" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/management.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              security)
+                echo "terraform_root=alz-platform/pattern1/security" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/security.tfvars" >> $GITHUB_OUTPUT
+                ;;
+              sharedservices)
+                echo "terraform_root=alz-platform/pattern1/sharedservices" >> $GITHUB_OUTPUT
+                echo "tfvars_file=alz-platform-vars/pattern1/sharedservices.tfvars" >> $GITHUB_OUTPUT
+                ;;
+            esac
+          fi
+
+      - name: Generate Deployment Summary
+        run: |
+          echo "## ALZ Subscription Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Subscription:** ${{ steps.paths.outputs.subscription_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ steps.paths.outputs.terraform_action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ steps.paths.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Terraform Root:** ${{ steps.paths.outputs.terraform_root }}" >> $GITHUB_STEP_SUMMARY
+          echo "**tfvars:** ${{ steps.paths.outputs.tfvars_file }}" >> $GITHUB_STEP_SUMMARY
