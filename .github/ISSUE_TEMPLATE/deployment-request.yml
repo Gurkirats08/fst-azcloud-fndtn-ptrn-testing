@@ -1,0 +1,70 @@
+name: Deployment Request
+description: Request an ALZ deployment and select target region and subscription.
+title: "[Deployment]: "
+labels:
+  - deployment
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form to request a deployment.
+
+  - type: dropdown
+    id: region
+    attributes:
+      label: Azure Region
+      description: Select the region where deployment should run.
+      options:
+        - eastus
+        - westus2
+        - centralus
+        - northeurope
+        - westeurope
+        - uksouth
+        - southeastasia
+        - australiaeast
+    validations:
+      required: true
+
+  - type: dropdown
+    id: subscription
+    attributes:
+      label: Deployment Subscription
+      description: Select the target ALZ subscription/workload.
+      options:
+        - connectivity
+        - identity
+        - management
+        - security
+        - sharedservices
+    validations:
+      required: true
+
+  - type: input
+    id: subscription_id
+    attributes:
+      label: Azure Subscription ID
+      description: Enter the exact Azure subscription GUID.
+      placeholder: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    validations:
+      required: true
+
+  - type: dropdown
+    id: action
+    attributes:
+      label: Terraform Action
+      description: Choose whether this request is for plan or apply.
+      options:
+        - plan
+        - apply
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Any constraints, approvals, or change ticket references.
+      placeholder: Change ticket, maintenance window, dependencies, etc.
+    validations:
+      required: false

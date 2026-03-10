@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Deployment Request Form
+    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-request.yml
+    about: Use this form to choose deployment region and subscription.
