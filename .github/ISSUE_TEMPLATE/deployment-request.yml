@@ -60,6 +60,16 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: environment
+    attributes:
+      label: GitHub Environment
+      description: Select the target GitHub Environment for approvals.
+      options:
+        - NonProduction
+    validations:
+      required: true
+
   - type: textarea
     id: notes
     attributes:

@@ -29,6 +29,24 @@ on:
         options:
           - plan
           - apply
+      expected_subscription_id:
+        description: Expected target subscription GUID for validation
+        required: false
+        type: string
+      region:
+        description: Target Azure region (for request tracking)
+        required: false
+        default: eastus
+        type: choice
+        options:
+          - eastus
+          - westus2
+          - centralus
+          - northeurope
+          - westeurope
+          - uksouth
+          - southeastasia
+          - australiaeast
   
   workflow_call:
     inputs:
@@ -62,6 +80,18 @@ on:
         description: tfvars file path inside this ptrn repo
         required: true
         type: string
+      keyvault_name:
+        description: Subscription-specific Key Vault containing Terraform service principal secrets
+        required: false
+        type: string
+      expected_subscription_id:
+        description: Expected target subscription GUID for validation
+        required: false
+        type: string
+      region:
+        description: Target Azure region (for request tracking)
+        required: false
+        type: string
 
 env:
   TERRAFORM_VERSION: "1.6.0"
@@ -90,6 +120,9 @@ jobs:
             echo "goldrepo_ref=${{ inputs.goldrepo_ref }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "keyvault_name=${{ inputs.keyvault_name }}" >> $GITHUB_OUTPUT
+            echo "expected_subscription_id=${{ inputs.expected_subscription_id }}" >> $GITHUB_OUTPUT
+            echo "region=${{ inputs.region }}" >> $GITHUB_OUTPUT
           else
             # For workflow_dispatch, map subscription to paths
             echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
@@ -97,27 +130,34 @@ jobs:
             echo "goldrepo_ref=${{ env.GOLDREPO_REF }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "expected_subscription_id=${{ github.event.inputs.expected_subscription_id }}" >> $GITHUB_OUTPUT
+            echo "region=${{ github.event.inputs.region }}" >> $GITHUB_OUTPUT
             
             case "${{ github.event.inputs.subscription }}" in
               connectivity)
                 echo "terraform_root=alz-platform/pattern1/connectivity" >> $GITHUB_OUTPUT
                 echo "tfvars_file=alz-platform-vars/pattern1/connectivity.tfvars" >> $GITHUB_OUTPUT
+                echo "keyvault_name=kv-connectivity-alz" >> $GITHUB_OUTPUT
                 ;;
               identity)
                 echo "terraform_root=alz-platform/pattern1/identity_dev" >> $GITHUB_OUTPUT
                 echo "tfvars_file=alz-platform-vars/pattern1/identity.tfvars" >> $GITHUB_OUTPUT
+                echo "keyvault_name=kv-identity-alz" >> $GITHUB_OUTPUT
                 ;;
               management)
                 echo "terraform_root=alz-platform/pattern1/management" >> $GITHUB_OUTPUT
                 echo "tfvars_file=alz-platform-vars/pattern1/management.tfvars" >> $GITHUB_OUTPUT
+                echo "keyvault_name=kv-management-alz" >> $GITHUB_OUTPUT
                 ;;
               security)
                 echo "terraform_root=alz-platform/pattern1/security" >> $GITHUB_OUTPUT
                 echo "tfvars_file=alz-platform-vars/pattern1/security.tfvars" >> $GITHUB_OUTPUT
+                echo "keyvault_name=kv-security-alz" >> $GITHUB_OUTPUT
                 ;;
               sharedservices)
                 echo "terraform_root=alz-platform/pattern1/sharedservices" >> $GITHUB_OUTPUT
                 echo "tfvars_file=alz-platform-vars/pattern1/sharedservices.tfvars" >> $GITHUB_OUTPUT
+                echo "keyvault_name=kv-sharedservices-alz" >> $GITHUB_OUTPUT
                 ;;
             esac
           fi
@@ -165,6 +205,19 @@ jobs:
           echo "client_id=${AZURE_CLIENT_ID}" >> $GITHUB_OUTPUT
           echo "tenant_id=${AZURE_TENANT_ID}" >> $GITHUB_OUTPUT
           echo "subscription_id=${AZURE_SUBSCRIPTION_ID}" >> $GITHUB_OUTPUT
+
+      - name: Validate Requested Subscription ID
+        if: ${{ steps.paths.outputs.expected_subscription_id != '' }}
+        run: |
+          REQUESTED_SUBSCRIPTION_ID="${{ steps.paths.outputs.expected_subscription_id }}"
+          ACTUAL_SUBSCRIPTION_ID="${{ steps.keyvault.outputs.subscription_id }}"
+
+          if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
+            echo "Requested subscription ID does not match mapped Key Vault subscription ID."
+            echo "Requested: ${REQUESTED_SUBSCRIPTION_ID}"
+            echo "Actual: ${ACTUAL_SUBSCRIPTION_ID}"
+            exit 1
+          fi
 
       - name: Terraform Init
         working-directory: ./goldrepo/${{ steps.paths.outputs.terraform_root }}
@@ -233,6 +286,9 @@ jobs:
             echo "goldrepo_ref=${{ inputs.goldrepo_ref }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "keyvault_name=${{ inputs.keyvault_name }}" >> $GITHUB_OUTPUT
+            echo "expected_subscription_id=${{ inputs.expected_subscription_id }}" >> $GITHUB_OUTPUT
+            echo "region=${{ inputs.region }}" >> $GITHUB_OUTPUT
           else
             # For workflow_dispatch, map subscription to paths
             echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
@@ -240,6 +296,8 @@ jobs:
             echo "goldrepo_ref=${{ env.GOLDREPO_REF }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "expected_subscription_id=${{ github.event.inputs.expected_subscription_id }}" >> $GITHUB_OUTPUT
+            echo "region=${{ github.event.inputs.region }}" >> $GITHUB_OUTPUT
             
             case "${{ github.event.inputs.subscription }}" in
               connectivity)
@@ -323,6 +381,19 @@ jobs:
           echo "tenant_id=$TENANT_ID" >> $GITHUB_OUTPUT
           echo "subscription_id=$SUBSCRIPTION_ID" >> $GITHUB_OUTPUT
 
+      - name: Validate Requested Subscription ID
+        if: ${{ steps.paths.outputs.expected_subscription_id != '' }}
+        run: |
+          REQUESTED_SUBSCRIPTION_ID="${{ steps.paths.outputs.expected_subscription_id }}"
+          ACTUAL_SUBSCRIPTION_ID="${{ steps.keyvault.outputs.subscription_id }}"
+
+          if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
+            echo "Requested subscription ID does not match mapped Key Vault subscription ID."
+            echo "Requested: ${REQUESTED_SUBSCRIPTION_ID}"
+            echo "Actual: ${ACTUAL_SUBSCRIPTION_ID}"
+            exit 1
+          fi
+
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
@@ -367,11 +438,13 @@ jobs:
             echo "tfvars_file=${{ inputs.tfvars_file }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ inputs.terraform_action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "region=${{ inputs.region }}" >> $GITHUB_OUTPUT
           else
             # For workflow_dispatch, map subscription to paths
             echo "subscription_name=${{ github.event.inputs.subscription }}" >> $GITHUB_OUTPUT
             echo "terraform_action=${{ github.event.inputs.action }}" >> $GITHUB_OUTPUT
             echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+            echo "region=${{ github.event.inputs.region }}" >> $GITHUB_OUTPUT
             
             case "${{ github.event.inputs.subscription }}" in
               connectivity)
@@ -408,5 +481,6 @@ jobs:
           echo "**Subscription:** ${{ steps.paths.outputs.subscription_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Action:** ${{ steps.paths.outputs.terraform_action }}" >> $GITHUB_STEP_SUMMARY
           echo "**Environment:** ${{ steps.paths.outputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ steps.paths.outputs.region }}" >> $GITHUB_STEP_SUMMARY
           echo "**Terraform Root:** ${{ steps.paths.outputs.terraform_root }}" >> $GITHUB_STEP_SUMMARY
           echo "**tfvars:** ${{ steps.paths.outputs.tfvars_file }}" >> $GITHUB_STEP_SUMMARY
