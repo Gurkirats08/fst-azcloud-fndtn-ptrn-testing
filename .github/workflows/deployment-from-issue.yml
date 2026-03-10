@@ -63,11 +63,26 @@ jobs:
               return;
             }
 
+            const workflowMap = {
+              connectivity: 'alz-connectivity.yml',
+              identity: 'alz-identity.yml',
+              management: 'alz-management.yml',
+              security: 'alz-security.yml',
+              sharedservices: 'alz-sharedservices.yml'
+            };
+
+            const targetWorkflow = workflowMap[subscription];
+            if (!targetWorkflow) {
+              core.setFailed(`No target workflow configured for subscription '${subscription}'.`);
+              return;
+            }
+
             core.setOutput('region', region);
             core.setOutput('subscription', subscription);
             core.setOutput('subscription_id', subscriptionId);
             core.setOutput('action', action);
             core.setOutput('environment', environment);
+            core.setOutput('target_workflow', targetWorkflow);
 
       - name: Trigger ALZ workflow
         uses: actions/github-script@v7
@@ -76,14 +91,12 @@ jobs:
             await github.rest.actions.createWorkflowDispatch({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              workflow_id: 'alz-run-all.yml',
+              workflow_id: '${{ steps.parse.outputs.target_workflow }}',
               ref: context.payload.repository.default_branch,
               inputs: {
-                subscription: '${{ steps.parse.outputs.subscription }}',
                 environment: '${{ steps.parse.outputs.environment }}',
                 action: '${{ steps.parse.outputs.action }}',
-                expected_subscription_id: '${{ steps.parse.outputs.subscription_id }}',
-                region: '${{ steps.parse.outputs.region }}'
+                expected_subscription_id: '${{ steps.parse.outputs.subscription_id }}'
               }
             });
 
@@ -96,6 +109,7 @@ jobs:
               'Deployment workflow dispatched from this issue.',
               '',
               `- Subscription: ${{ steps.parse.outputs.subscription }}`,
+              `- Target Workflow: ${{ steps.parse.outputs.target_workflow }}`,
               `- Subscription ID (requested): ${{ steps.parse.outputs.subscription_id }}`,
               `- Region: ${{ steps.parse.outputs.region }}`,
               `- Action: ${{ steps.parse.outputs.action }}`,
