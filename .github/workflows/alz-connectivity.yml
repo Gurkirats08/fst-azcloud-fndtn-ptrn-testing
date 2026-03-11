@@ -6,10 +6,7 @@ on:
       environment:
         description: 'Select Environment'
         required: true
-        default: 'NonProduction'
-        type: choice
-        options:
-          - NonProduction
+        default: 'Connectivity'
       action:
         description: 'Terraform Action'
         required: true
