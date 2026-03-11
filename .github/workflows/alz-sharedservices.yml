@@ -55,24 +55,24 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Validate Required Azure Secrets
+      - name: Validate Required ARM Secrets
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           MISSING_SECRETS=""
 
-          if [ -z "$AZURE_CLIENT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          if [ -z "$ARM_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"
           fi
 
-          if [ -z "$AZURE_TENANT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          if [ -z "$ARM_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"
           fi
 
-          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"
           fi
 
           if [ -n "$MISSING_SECRETS" ]; then
@@ -83,15 +83,15 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
         if: ${{ github.event.inputs.expected_subscription_id != '' }}
         run: |
           REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
-          ACTUAL_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
             echo "Requested subscription ID does not match shared services workflow subscription ID."
@@ -106,9 +106,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: terraform init -backend-config="backend.tfvars"
 
@@ -128,9 +128,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
           TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/sharedservices.tfvars"
@@ -206,24 +206,24 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Validate Required Azure Secrets
+      - name: Validate Required ARM Secrets
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           MISSING_SECRETS=""
 
-          if [ -z "$AZURE_CLIENT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          if [ -z "$ARM_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"
           fi
 
-          if [ -z "$AZURE_TENANT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          if [ -z "$ARM_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"
           fi
 
-          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"
           fi
 
           if [ -n "$MISSING_SECRETS" ]; then
@@ -234,15 +234,15 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
         if: ${{ github.event.inputs.expected_subscription_id != '' }}
         run: |
           REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
-          ACTUAL_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
             echo "Requested subscription ID does not match shared services workflow subscription ID."
@@ -263,9 +263,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: terraform init -backend-config="backend.tfvars"
 
@@ -276,9 +276,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
           if [ -f "tfplan-sharedservices" ]; then
@@ -315,24 +315,24 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
-      - name: Validate Required Azure Secrets
+      - name: Validate Required ARM Secrets
         env:
-          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           MISSING_SECRETS=""
 
-          if [ -z "$AZURE_CLIENT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          if [ -z "$ARM_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"
           fi
 
-          if [ -z "$AZURE_TENANT_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          if [ -z "$ARM_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"
           fi
 
-          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
-            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"
           fi
 
           if [ -n "$MISSING_SECRETS" ]; then
@@ -343,15 +343,15 @@ jobs:
       - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
         if: ${{ github.event.inputs.expected_subscription_id != '' }}
         run: |
           REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
-          ACTUAL_SUBSCRIPTION_ID="${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+          ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
             echo "Requested subscription ID does not match shared services workflow subscription ID."
@@ -366,9 +366,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: terraform init -backend-config="backend.tfvars"
 
@@ -379,9 +379,9 @@ jobs:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
           ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
           TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/sharedservices.tfvars"
