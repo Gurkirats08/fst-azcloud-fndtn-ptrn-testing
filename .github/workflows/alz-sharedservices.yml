@@ -55,6 +55,31 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
+      - name: Validate Required Azure Secrets
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+
+          if [ -z "$AZURE_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          fi
+
+          if [ -z "$AZURE_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          fi
+
+          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          fi
+
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            exit 1
+          fi
+
       - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
@@ -181,6 +206,31 @@ jobs:
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
 
+      - name: Validate Required Azure Secrets
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+
+          if [ -z "$AZURE_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          fi
+
+          if [ -z "$AZURE_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          fi
+
+          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          fi
+
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            exit 1
+          fi
+
       - name: Azure Login (OIDC)
         uses: azure/login@v1
         with:
@@ -264,6 +314,31 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Validate Required Azure Secrets
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+
+          if [ -z "$AZURE_CLIENT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_CLIENT_ID"
+          fi
+
+          if [ -z "$AZURE_TENANT_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_TENANT_ID"
+          fi
+
+          if [ -z "$AZURE_SUBSCRIPTION_ID" ]; then
+            MISSING_SECRETS="$MISSING_SECRETS AZURE_SUBSCRIPTION_ID"
+          fi
+
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            exit 1
+          fi
 
       - name: Azure Login (OIDC)
         uses: azure/login@v1
