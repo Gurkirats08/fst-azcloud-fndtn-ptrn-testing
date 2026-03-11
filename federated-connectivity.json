@@ -1,0 +1,9 @@
+{
+  "name": "github-connectivity-main",
+  "audiences": [
+    "api://AzureADTokenExchange"
+  ],
+  "issuer": "https://token.actions.githubusercontent.com",
+  "description": "GitHub OIDC for connectivity subscription workflow",
+  "subject": "repo:/heads/main"
+}

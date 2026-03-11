@@ -4,7 +4,7 @@ mainLocation = "southeastasia"
 tags = {
   environment = "sharedservices"
 }
-subscriptionId = "3e3a2118-a39a-4ff7-9df7-104c3e1e611a"
+subscriptionId = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
 
 # resource group
 resourceGroups = {
@@ -67,7 +67,7 @@ network_watcher_name = "NetworkWatcher_southeastasia"
 sharedservicesVirtualNetworks = {
   vnet1 = {
     resourceGroupName  = "rg-net-sharedservices-sea-001"
-    subscriptionId     = "3e3a2118-a39a-4ff7-9df7-104c3e1e611a"
+    subscriptionId     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
     VirtualNetworkName = "vnet-sharedservices-sea-001"
     address_space      = "10.64.0.0/23"
     sku_name           = "Standard"
@@ -75,7 +75,7 @@ sharedservicesVirtualNetworks = {
   }
   vnet2 = {
     resourceGroupName  = "rg-net-sharedservices-sea-001"
-    subscriptionId     = "3e3a2118-a39a-4ff7-9df7-104c3e1e611a"
+    subscriptionId     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
     VirtualNetworkName = "vnet-sharedservices-sea-002"
     address_space      = "10.65.0.0/23"
     sku_name           = "Standard"
