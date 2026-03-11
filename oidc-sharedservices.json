@@ -1,0 +1,7 @@
+{
+  "name": "github-actions-sharedservices",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:Gurkirats08/fst-azcloud-fndtn-ptrn-testing:environment:sharedservices",
+  "description": "OIDC for sharedservices workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

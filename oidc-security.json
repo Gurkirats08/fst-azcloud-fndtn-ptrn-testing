@@ -1,0 +1,7 @@
+{
+  "name": "github-actions-security",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:Gurkirats08/fst-azcloud-fndtn-ptrn-testing:environment:security",
+  "description": "OIDC for security workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

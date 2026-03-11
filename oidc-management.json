@@ -1,0 +1,7 @@
+{
+  "name": "github-actions-management",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:Gurkirats08/fst-azcloud-fndtn-ptrn-testing:environment:management",
+  "description": "OIDC for management workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

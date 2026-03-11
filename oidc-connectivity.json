@@ -1,0 +1,7 @@
+{
+  "name": "github-actions-connectivity",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:Gurkirats08/fst-azcloud-fndtn-ptrn-testing:environment:connectivity",
+  "description": "OIDC for connectivity workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

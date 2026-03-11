@@ -1,0 +1,7 @@
+{
+  "name": "github-actions-identity",
+  "issuer": "https://token.actions.githubusercontent.com",
+  "subject": "repo:Gurkirats08/fst-azcloud-fndtn-ptrn-testing:environment:identity",
+  "description": "OIDC for identity workflow",
+  "audiences": ["api://AzureADTokenExchange"]
+}

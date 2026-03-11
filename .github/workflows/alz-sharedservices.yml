@@ -32,6 +32,7 @@ env:
 jobs:
   terraform-plan:
     runs-on: ubuntu-latest
+    environment: shared
     permissions:
       id-token: write
       contents: read
@@ -156,6 +157,7 @@ jobs:
   terraform-apply:
     needs: approval
     runs-on: ubuntu-latest
+    environment: shared
     if: github.event.inputs.action == 'apply'
     permissions:
       id-token: write
@@ -239,6 +241,7 @@ jobs:
   terraform-destroy:
     needs: approval
     runs-on: ubuntu-latest
+    environment: shared
     if: github.event.inputs.action == 'destroy'
     permissions:
       id-token: write
