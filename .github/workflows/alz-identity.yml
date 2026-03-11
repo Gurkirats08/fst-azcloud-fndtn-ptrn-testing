@@ -23,6 +23,8 @@ on:
         description: 'Expected Azure Subscription ID for safety validation'
         required: false
         type: string
+  issues:
+    types: [opened, labeled, edited, reopened]
 
 env:
   TERRAFORM_VERSION: "1.6.0"
@@ -32,7 +34,111 @@ env:
   GOLDREPO_REF: main
 
 jobs:
+  issue-dispatch:
+    if: github.event_name == 'issues' && (contains(github.event.issue.labels.*.name, 'deployment') || startsWith(github.event.issue.title, '[Deployment]'))
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: read
+      issues: write
+    steps:
+      - name: Parse and dispatch identity workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const expectedSubscription = 'identity';
+            const targetWorkflow = 'alz-identity.yml';
+            const defaultEnvironment = 'identity';
+            const body = context.payload.issue.body || '';
+
+            function extractField(label) {
+              const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const regex = new RegExp(`###\\s+${escaped}\\s*\\n+([\\s\\S]*?)(?=\\n###\\s+|$)`, 'i');
+              const match = body.match(regex);
+              if (!match) return '';
+              return match[1]
+                .trim()
+                .split('\n')
+                .map(line => line.trim())
+                .filter(line => line && line !== '_No response_')
+                .join(' ')
+                .trim();
+            }
+
+            const rawSubscription = extractField('Deployment Subscription');
+            if (!rawSubscription) {
+              core.info('No deployment subscription field found. Skipping.');
+              return;
+            }
+
+            const normalizedSubscription = rawSubscription.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const subscriptionAliases = {
+              connectivity: 'connectivity',
+              identity: 'identity',
+              identitydev: 'identity',
+              management: 'management',
+              security: 'security',
+              shared: 'sharedservices',
+              sharedservice: 'sharedservices',
+              sharedservices: 'sharedservices'
+            };
+            const subscription = subscriptionAliases[normalizedSubscription] || '';
+
+            if (subscription !== expectedSubscription) {
+              core.info(`Issue is for '${subscription}', skipping ${expectedSubscription} workflow.`);
+              return;
+            }
+
+            const subscriptionId = extractField('Azure Subscription ID');
+            const rawAction = extractField('Terraform Action') || 'plan';
+            const rawEnvironment = extractField('GitHub Environment') || defaultEnvironment;
+            const action = rawAction.toLowerCase().trim();
+
+            const normalizedEnvironment = rawEnvironment.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const environmentAliases = {
+              connectivity: 'connectivity',
+              identity: 'identity',
+              identitydev: 'identity',
+              management: 'management',
+              security: 'security',
+              shared: 'shared',
+              sharedservice: 'shared',
+              sharedservices: 'shared',
+              nonproduction: 'NonProduction'
+            };
+            const environment = environmentAliases[normalizedEnvironment] || rawEnvironment;
+
+            if (!subscriptionId) {
+              core.setFailed('Azure Subscription ID is required for deployment issues.');
+              return;
+            }
+
+            if (!['plan', 'apply', 'destroy'].includes(action)) {
+              core.setFailed(`Invalid Terraform Action '${rawAction}'.`);
+              return;
+            }
+
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: targetWorkflow,
+              ref: context.payload.repository.default_branch,
+              inputs: {
+                environment,
+                action,
+                expected_subscription_id: subscriptionId
+              }
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: `Dispatched ${targetWorkflow} with action '${action}' and environment '${environment}'.`
+            });
+
   terraform-plan:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     environment: identity
     permissions:
@@ -323,7 +429,7 @@ jobs:
   deployment-summary:
     needs: terraform-plan
     runs-on: ubuntu-latest
-    if: always()
+    if: github.event_name == 'workflow_dispatch' && always()
     steps:
       - name: Generate Deployment Summary
         run: |
