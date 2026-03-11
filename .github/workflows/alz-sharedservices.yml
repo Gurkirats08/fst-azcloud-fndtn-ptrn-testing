@@ -110,7 +110,11 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
-        run: terraform init -backend-config="backend.tfvars"
+        run: |
+          terraform init \
+            -backend-config="backend.tfvars" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
 
       - name: Terraform Format
         working-directory: ./goldrepo/alz-platform/pattern1/sharedservices
@@ -267,7 +271,11 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
-        run: terraform init -backend-config="backend.tfvars"
+        run: |
+          terraform init \
+            -backend-config="backend.tfvars" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
 
       - name: Terraform Apply
         timeout-minutes: 60
@@ -370,7 +378,11 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
-        run: terraform init -backend-config="backend.tfvars"
+        run: |
+          terraform init \
+            -backend-config="backend.tfvars" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
 
       - name: Terraform Destroy
         timeout-minutes: 60
