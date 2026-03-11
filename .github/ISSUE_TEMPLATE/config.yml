@@ -3,18 +3,3 @@ contact_links:
   - name: Deployment Request Form (Generic)
     url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-request.yml
     about: Use this form to choose deployment region and subscription.
-  - name: Deployment Request - Connectivity
-    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-connectivity.yml
-    about: Create a connectivity deployment request.
-  - name: Deployment Request - Identity
-    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-identity.yml
-    about: Create an identity deployment request.
-  - name: Deployment Request - Management
-    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-management.yml
-    about: Create a management deployment request.
-  - name: Deployment Request - Security
-    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-security.yml
-    about: Create a security deployment request.
-  - name: Deployment Request - Shared Services
-    url: https://github.com/Gurkirats08/fst-azcloud-fndtn-ptrn-testing/issues/new?template=deployment-sharedservices.yml
-    about: Create a shared services deployment request.
