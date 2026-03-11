@@ -2,7 +2,7 @@ name: Dispatch ALZ Deploy from Issue
 
 on:
   issues:
-    types: [opened]
+    types: [opened, labeled, edited, reopened]
 
 permissions:
   actions: write
@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   dispatch:
-    if: contains(github.event.issue.labels.*.name, 'deployment')
+    if: contains(github.event.issue.labels.*.name, 'deployment') || startsWith(github.event.issue.title, '[Deployment]')
     runs-on: ubuntu-latest
     steps:
       - name: Parse deployment request from issue body
@@ -36,10 +36,39 @@ jobs:
             }
 
             const region = extractField('Azure Region');
-            const subscription = extractField('Deployment Subscription');
+            const rawSubscription = extractField('Deployment Subscription');
             const subscriptionId = extractField('Azure Subscription ID');
-            const action = extractField('Terraform Action');
-            const environment = extractField('GitHub Environment') || 'NonProduction';
+            const rawAction = extractField('Terraform Action');
+            const rawEnvironment = extractField('GitHub Environment') || 'NonProduction';
+
+            const normalizedSubscription = rawSubscription.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const subscriptionAliases = {
+              connectivity: 'connectivity',
+              identity: 'identity',
+              identitydev: 'identity',
+              management: 'management',
+              security: 'security',
+              shared: 'sharedservices',
+              sharedservice: 'sharedservices',
+              sharedservices: 'sharedservices'
+            };
+            const subscription = subscriptionAliases[normalizedSubscription] || '';
+
+            const action = rawAction.toLowerCase().trim();
+
+            const normalizedEnvironment = rawEnvironment.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const environmentAliases = {
+              connectivity: 'connectivity',
+              identity: 'identity',
+              identitydev: 'identity',
+              management: 'management',
+              security: 'security',
+              shared: 'shared',
+              sharedservice: 'shared',
+              sharedservices: 'shared',
+              nonproduction: 'NonProduction'
+            };
+            const environment = environmentAliases[normalizedEnvironment] || rawEnvironment;
 
             const missing = [];
             if (!subscription) missing.push('Deployment Subscription');
@@ -54,7 +83,7 @@ jobs:
 
             const validSubscriptions = ['connectivity', 'identity', 'management', 'security', 'sharedservices'];
             if (!validSubscriptions.includes(subscription)) {
-              core.setFailed(`Invalid subscription value '${subscription}'.`);
+              core.setFailed(`Invalid subscription value '${rawSubscription}'.`);
               return;
             }
 
