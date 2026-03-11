@@ -34,20 +34,28 @@ env:
 jobs:
   issue-dispatch:
     if: github.event_name == 'issues' && (contains(github.event.issue.labels.*.name, 'deployment') || startsWith(github.event.issue.title, '[Deployment]'))
+    outputs:
+      should_run: ${{ steps.parse.outputs.should_run }}
+      action: ${{ steps.parse.outputs.action }}
+      environment: ${{ steps.parse.outputs.environment }}
+      expected_subscription_id: ${{ steps.parse.outputs.expected_subscription_id }}
     runs-on: ubuntu-latest
     permissions:
-      actions: write
       contents: read
-      issues: write
     steps:
-      - name: Parse and dispatch sharedservices workflow
+      - name: Parse deployment request for sharedservices
+        id: parse
         uses: actions/github-script@v7
         with:
           script: |
             const expectedSubscription = 'sharedservices';
-            const targetWorkflow = 'alz-sharedservices.yml';
             const defaultEnvironment = 'shared';
             const body = context.payload.issue.body || '';
+
+            core.setOutput('should_run', 'false');
+            core.setOutput('action', 'plan');
+            core.setOutput('environment', defaultEnvironment);
+            core.setOutput('expected_subscription_id', '');
 
             function extractField(label) {
               const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -65,7 +73,7 @@ jobs:
 
             const rawSubscription = extractField('Deployment Subscription');
             if (!rawSubscription) {
-              core.info('No deployment subscription field found. Skipping.');
+              core.info('No deployment subscription field found. Skipping sharedservices workflow execution.');
               return;
             }
 
@@ -83,7 +91,7 @@ jobs:
             const subscription = subscriptionAliases[normalizedSubscription] || '';
 
             if (subscription !== expectedSubscription) {
-              core.info(`Issue is for '${subscription}', skipping ${expectedSubscription} workflow.`);
+              core.info(`Issue is for '${subscription}', skipping ${expectedSubscription} workflow execution.`);
               return;
             }
 
@@ -116,29 +124,20 @@ jobs:
               return;
             }
 
-            await github.rest.actions.createWorkflowDispatch({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              workflow_id: targetWorkflow,
-              ref: context.payload.repository.default_branch,
-              inputs: {
-                environment,
-                action,
-                expected_subscription_id: subscriptionId
-              }
-            });
-
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.issue.number,
-              body: `Dispatched ${targetWorkflow} with action '${action}' and environment '${environment}'.`
-            });
+            core.setOutput('should_run', 'true');
+            core.setOutput('action', action);
+            core.setOutput('environment', environment);
+            core.setOutput('expected_subscription_id', subscriptionId);
 
   terraform-plan:
-    if: github.event_name == 'workflow_dispatch'
+    needs: issue-dispatch
+    if: always() && (github.event_name == 'workflow_dispatch' || (github.event_name == 'issues' && needs.issue-dispatch.outputs.should_run == 'true'))
     runs-on: ubuntu-latest
     environment: shared
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}
+      DEPLOY_ACTION: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.action || github.event.inputs.action }}
+      EXPECTED_SUBSCRIPTION_ID: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.expected_subscription_id || github.event.inputs.expected_subscription_id }}
     permissions:
       id-token: write
       contents: read
@@ -194,9 +193,9 @@ jobs:
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
-        if: ${{ github.event.inputs.expected_subscription_id != '' }}
+        if: ${{ env.EXPECTED_SUBSCRIPTION_ID != '' }}
         run: |
-          REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
+          REQUESTED_SUBSCRIPTION_ID="${{ env.EXPECTED_SUBSCRIPTION_ID }}"
           ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
@@ -215,7 +214,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -241,7 +240,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/sharedservices.tfvars"
 
@@ -279,21 +278,24 @@ jobs:
           retention-days: 7
 
   approval:
-    needs: terraform-plan
+    needs: [terraform-plan, issue-dispatch]
     runs-on: ubuntu-latest
-    if: github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy'
+    if: always() && needs.terraform-plan.result == 'success' && ((github.event_name == 'issues' && (needs.issue-dispatch.outputs.action == 'apply' || needs.issue-dispatch.outputs.action == 'destroy')) || (github.event_name == 'workflow_dispatch' && (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy')))
     environment:
-      name: ${{ github.event.inputs.environment }}
+      name: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}
     steps:
       - name: Approval Checkpoint
         run: |
-          echo "✅ Approval granted for shared services deployment to ${{ github.event.inputs.environment }}"
+          echo "✅ Approval granted for shared services deployment to ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}"
 
   terraform-apply:
-    needs: approval
+    needs: [approval, issue-dispatch]
     runs-on: ubuntu-latest
     environment: shared
-    if: github.event.inputs.action == 'apply'
+    if: always() && needs.approval.result == 'success' && ((github.event_name == 'issues' && needs.issue-dispatch.outputs.action == 'apply') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'))
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}
+      EXPECTED_SUBSCRIPTION_ID: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.expected_subscription_id || github.event.inputs.expected_subscription_id }}
     permissions:
       id-token: write
       contents: read
@@ -349,9 +351,9 @@ jobs:
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
-        if: ${{ github.event.inputs.expected_subscription_id != '' }}
+        if: ${{ env.EXPECTED_SUBSCRIPTION_ID != '' }}
         run: |
-          REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
+          REQUESTED_SUBSCRIPTION_ID="${{ env.EXPECTED_SUBSCRIPTION_ID }}"
           ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
@@ -376,7 +378,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -393,7 +395,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           if [ -f "tfplan-sharedservices" ]; then
             terraform apply -auto-approve "tfplan-sharedservices"
@@ -403,10 +405,13 @@ jobs:
           fi
 
   terraform-destroy:
-    needs: approval
+    needs: [approval, issue-dispatch]
     runs-on: ubuntu-latest
     environment: shared
-    if: github.event.inputs.action == 'destroy'
+    if: always() && needs.approval.result == 'success' && ((github.event_name == 'issues' && needs.issue-dispatch.outputs.action == 'destroy') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'destroy'))
+    env:
+      DEPLOY_ENV: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}
+      EXPECTED_SUBSCRIPTION_ID: ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.expected_subscription_id || github.event.inputs.expected_subscription_id }}
     permissions:
       id-token: write
       contents: read
@@ -462,9 +467,9 @@ jobs:
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
       - name: Validate Requested Subscription ID
-        if: ${{ github.event.inputs.expected_subscription_id != '' }}
+        if: ${{ env.EXPECTED_SUBSCRIPTION_ID != '' }}
         run: |
-          REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
+          REQUESTED_SUBSCRIPTION_ID="${{ env.EXPECTED_SUBSCRIPTION_ID }}"
           ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
 
           if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
@@ -483,7 +488,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -500,7 +505,7 @@ jobs:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ env.DEPLOY_ENV }}
         run: |
           TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/sharedservices.tfvars"
 
@@ -512,14 +517,14 @@ jobs:
           terraform destroy -auto-approve -var-file="$TFVARS_FILE"
 
   deployment-summary:
-    needs: terraform-plan
+    needs: [terraform-plan, issue-dispatch]
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && always()
+    if: always() && needs.terraform-plan.result != 'skipped'
     steps:
       - name: Generate Deployment Summary
         run: |
           echo "## 🎯 ALZ Shared Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.environment || github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ github.event_name == 'issues' && needs.issue-dispatch.outputs.action || github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
