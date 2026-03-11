@@ -1,5 +1,5 @@
 name: Deployment Request
-description: Request an ALZ deployment and select target region and subscription.
+description: Request an ALZ deployment and select subscription, action, and environment.
 title: "[Deployment]: "
 labels:
   - deployment
@@ -53,10 +53,11 @@ body:
     id: action
     attributes:
       label: Terraform Action
-      description: Choose whether this request is for plan or apply.
+      description: Choose the Terraform operation.
       options:
         - plan
         - apply
+        - destroy
     validations:
       required: true
 
@@ -64,8 +65,13 @@ body:
     id: environment
     attributes:
       label: GitHub Environment
-      description: Select the target GitHub Environment for approvals.
+      description: Select the target GitHub Environment for approvals and policy controls.
       options:
+        - connectivity
+        - identity
+        - management
+        - security
+        - shared
         - NonProduction
     validations:
       required: true

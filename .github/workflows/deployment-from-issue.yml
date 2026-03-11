@@ -58,8 +58,14 @@ jobs:
               return;
             }
 
-            if (!['plan', 'apply'].includes(action)) {
+            if (!['plan', 'apply', 'destroy'].includes(action)) {
               core.setFailed(`Invalid Terraform Action '${action}'.`);
+              return;
+            }
+
+            const validEnvironments = ['connectivity', 'identity', 'management', 'security', 'shared', 'NonProduction'];
+            if (!validEnvironments.includes(environment)) {
+              core.setFailed(`Invalid GitHub Environment '${environment}'.`);
               return;
             }
 
