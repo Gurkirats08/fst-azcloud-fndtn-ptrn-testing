@@ -77,12 +77,33 @@ jobs:
             exit 1
           fi
 
+      - name: Validate Backend Blob Access
+        working-directory: ./alz-platform/pattern1/sharedservices
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          STORAGE_ACCOUNT_NAME=$(awk -F '"' '/storage_account_name/ {print $2}' backend.tfvars)
+          CONTAINER_NAME=$(awk -F '"' '/container_name/ {print $2}' backend.tfvars)
+          if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$CONTAINER_NAME" ]; then
+            echo "Unable to parse storage_account_name/container_name from backend.tfvars"
+            exit 1
+          fi
+          echo "Testing blob access using Azure AD login for: ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+          az storage container show \
+            --name "$CONTAINER_NAME" \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --auth-mode login \
+            --only-show-errors > /dev/null
+          echo "Blob access precheck passed."
+
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -107,8 +128,8 @@ jobs:
         timeout-minutes: 30
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -217,8 +238,8 @@ jobs:
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -234,8 +255,8 @@ jobs:
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -303,8 +324,8 @@ jobs:
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -320,8 +341,8 @@ jobs:
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
