@@ -3,7 +3,7 @@ data "azurerm_client_config" "current" {}
 #needed
 module "resource_group" {
   for_each            = var.resourceGroups
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/resourcegroup/v1.0?ref=main"
+  source              = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/resourcegroup/v1.0?ref=main"
   location            = each.value.location
   resource_group_name = each.value.name
   tags                = each.value.tags
