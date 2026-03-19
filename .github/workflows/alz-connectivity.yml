@@ -38,6 +38,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -154,6 +172,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -228,6 +264,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
