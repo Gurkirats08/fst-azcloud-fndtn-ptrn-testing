@@ -28,8 +28,6 @@ env:
   TERRAFORM_VERSION: "1.6.0"
   TF_INPUT: false
   TF_IN_AUTOMATION: true
-  GOLDREPO_REPOSITORY: Gurkirats08/fst-azcloud-goldrepo-testing
-  GOLDREPO_REF: main
 
 jobs:
   terraform-plan:
@@ -40,18 +38,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Checkout ptrn repo (tfvars)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: ptrn
-
-      - name: Checkout gold repo (terraform root)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GOLDREPO_REPOSITORY }}
-          ref: ${{ env.GOLDREPO_REF }}
-          token: ${{ secrets.GOLDREPO_PAT || secrets.GITHUB_TOKEN }}
-          path: goldrepo
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -79,7 +67,7 @@ jobs:
           fi
 
       - name: Terraform Init
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -91,16 +79,16 @@ jobs:
         run: terraform init -backend-config="backend.tfvars"
 
       - name: Terraform Format
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         continue-on-error: true
         run: terraform fmt -recursive
 
       - name: Terraform Validate
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         run: terraform validate
 
       - name: Terraform Plan
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         timeout-minutes: 30
         env:
           ARM_USE_OIDC: true
@@ -111,7 +99,7 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
-          TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/management.tfvars"
+          TFVARS_FILE="${{ github.workspace }}/alz-platform/pattern1/management/management.tfvars"
 
           if [ ! -f "$TFVARS_FILE" ]; then
             echo "❌ tfvars file not found: $TFVARS_FILE"
@@ -143,7 +131,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-management
-          path: ./goldrepo/alz-platform/pattern1/management/tfplan-management
+          path: ./alz-platform/pattern1/management/tfplan-management
           retention-days: 7
 
   approval:
@@ -166,18 +154,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Checkout ptrn repo (tfvars)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: ptrn
-
-      - name: Checkout gold repo (terraform root)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GOLDREPO_REPOSITORY }}
-          ref: ${{ env.GOLDREPO_REF }}
-          token: ${{ secrets.GOLDREPO_PAT || secrets.GITHUB_TOKEN }}
-          path: goldrepo
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -208,10 +186,10 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: tfplan-management
-          path: ./goldrepo/alz-platform/pattern1/management
+          path: ./alz-platform/pattern1/management
 
       - name: Terraform Init
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -224,7 +202,7 @@ jobs:
 
       - name: Terraform Apply
         timeout-minutes: 60
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -250,18 +228,8 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - name: Checkout ptrn repo (tfvars)
+      - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: ptrn
-
-      - name: Checkout gold repo (terraform root)
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GOLDREPO_REPOSITORY }}
-          ref: ${{ env.GOLDREPO_REF }}
-          token: ${{ secrets.GOLDREPO_PAT || secrets.GITHUB_TOKEN }}
-          path: goldrepo
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -289,7 +257,7 @@ jobs:
           fi
 
       - name: Terraform Init
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -302,7 +270,7 @@ jobs:
 
       - name: Terraform Destroy
         timeout-minutes: 60
-        working-directory: ./goldrepo/alz-platform/pattern1/management
+        working-directory: ./alz-platform/pattern1/management
         env:
           ARM_USE_OIDC: true
           ARM_OIDC_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
@@ -312,7 +280,7 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ github.event.inputs.environment }}
         run: |
-          TFVARS_FILE="${{ github.workspace }}/ptrn/alz-platform-vars/pattern1/management.tfvars"
+          TFVARS_FILE="${{ github.workspace }}/alz-platform/pattern1/management/management.tfvars"
 
           if [ ! -f "$TFVARS_FILE" ]; then
             echo "❌ tfvars file not found: $TFVARS_FILE"
