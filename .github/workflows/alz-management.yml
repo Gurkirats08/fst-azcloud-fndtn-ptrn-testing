@@ -148,8 +148,8 @@ jobs:
               --role "Storage Blob Data Contributor" \
               --scope "$STORAGE_ID" \
               --only-show-errors
-            echo "Waiting 30s for RBAC propagation..."
-            sleep 30
+            echo "Waiting 120s for RBAC propagation..."
+            sleep 120
           else
             echo "Storage Blob Data Contributor already assigned, skipping."
           fi
