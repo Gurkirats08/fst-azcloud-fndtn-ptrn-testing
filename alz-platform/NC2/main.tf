@@ -3,7 +3,7 @@ data "azurerm_client_config" "current" {}
 #Multiple Resource Group
 module "nc2_resource_group" {
   for_each            = var.nc2resourceGroups
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/resourcegroup/v1.0?ref=main"
+  source              = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/resourcegroup/v1.0?ref=main"
   location            = var.mainLocation
   resource_group_name = each.value.name
   tags                = each.value.tags
@@ -14,7 +14,7 @@ module "nc2_resource_group" {
 
 module "nc2_vnet_module" {
   for_each             = var.nc2VirtualNetworks
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/virtualnetwork/v1.0?ref=main"
+  source               = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/virtualnetwork/v1.0?ref=main"
   virtual_network_name = each.value.VirtualNetworkName
   resource_group_name  = each.value.resourceGroupName
   location             = var.mainLocation
@@ -26,7 +26,7 @@ module "nc2_vnet_module" {
 # subnets
 module "nc2_subnet_module" {
   for_each                  = var.nc2Subnets
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/subnet/v1.0?ref=main"
+  source                    = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/subnet/v1.0?ref=main"
   resource_group_name       = each.value.resourceGroupName
   virtual_network_name      = each.value.vnet_name
   subnet_name               = each.value.name
@@ -38,16 +38,16 @@ module "nc2_subnet_module" {
 }
 
 module "nc2_nsg_module" {
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/networksecuritygroup/v1.0?ref=main"
+  source                  = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/networksecuritygroup/v1.0?ref=main"
   main_location           = var.mainLocation
   environment             = var.environment
   network_security_groups = var.nc2NetworkSecurityGroups
-  depends_on = [ module.nc2_resource_group]
+  depends_on              = [ module.nc2_resource_group]
 }
 
 module "nc2_route_table_module" {
   for_each            = var.nc2RouteTables
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/routetable/v1.0?ref=main"
+  source              = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/routetable/v1.0?ref=main"
   resource_group_name = each.value.resourceGroupName
   route_table_name    = each.value.routeTableName
   location            = var.mainLocation

@@ -159,8 +159,7 @@ jobs:
               --role "Storage Blob Data Contributor" \
               --scope "$STORAGE_ID" \
               --only-show-errors
-            echo "Waiting 30s for RBAC propagation..."
-            sleep 30
+            echo "Role assignment created. Verifying data-plane access in the next step."
           else
             echo "Storage Blob Data Contributor already assigned, skipping."
           fi
@@ -179,19 +178,30 @@ jobs:
             exit 1
           fi
           echo "Testing blob access using Azure AD login for: ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
-          az storage container show \
-            --name "$CONTAINER_NAME" \
-            --account-name "$STORAGE_ACCOUNT_NAME" \
-            --auth-mode login \
-            --only-show-errors > /dev/null
-          echo "Blob access precheck passed."
+          MAX_RETRIES=10
+          RETRY_DELAY=30
+          ATTEMPT=1
+          while [ $ATTEMPT -le $MAX_RETRIES ]; do
+            if az storage container show \
+              --name "$CONTAINER_NAME" \
+              --account-name "$STORAGE_ACCOUNT_NAME" \
+              --auth-mode login \
+              --only-show-errors > /dev/null; then
+              echo "Blob access precheck passed on attempt $ATTEMPT/$MAX_RETRIES."
+              exit 0
+            fi
+            if [ $ATTEMPT -eq $MAX_RETRIES ]; then
+              echo "Blob access did not become ready after $MAX_RETRIES attempts."
+              exit 1
+            fi
+            echo "Blob access not ready yet. Waiting ${RETRY_DELAY}s before retry ${ATTEMPT}/${MAX_RETRIES}."
+            sleep $RETRY_DELAY
+            ATTEMPT=$((ATTEMPT + 1))
+          done
 
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
-          ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -200,7 +210,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_oidc=true"
+            -backend-config="use_cli=true"
 
       - name: Terraform Format
         working-directory: ./alz-platform/pattern1/sharedservices
@@ -343,9 +353,6 @@ jobs:
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
-          ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -354,7 +361,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_oidc=true"
+            -backend-config="use_cli=true"
 
       - name: Terraform Apply
         timeout-minutes: 60
@@ -447,9 +454,6 @@ jobs:
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/sharedservices
         env:
-          ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
@@ -458,7 +462,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_oidc=true"
+            -backend-config="use_cli=true"
 
       - name: Terraform Destroy
         timeout-minutes: 60
