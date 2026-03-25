@@ -210,7 +210,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_cli=true"
+            -backend-config="use_oidc=true"
 
       - name: Terraform Format
         working-directory: ./alz-platform/pattern1/sharedservices
@@ -361,7 +361,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_cli=true"
+            -backend-config="use_oidc=true"
 
       - name: Terraform Apply
         timeout-minutes: 60
@@ -462,7 +462,7 @@ jobs:
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
-            -backend-config="use_cli=true"
+            -backend-config="use_oidc=true"
 
       - name: Terraform Destroy
         timeout-minutes: 60
