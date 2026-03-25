@@ -104,14 +104,36 @@ jobs:
           else
             echo "Storage account $STORAGE_ACCOUNT already exists, skipping."
           fi
-          if ! az storage container show --name "$CONTAINER" --account-name "$STORAGE_ACCOUNT" --auth-mode login --only-show-errors &>/dev/null; then
-            az storage container create \
+          CONTAINER_CREATED=false
+          for i in {1..10}; do
+            if az storage container show --name "$CONTAINER" --account-name "$STORAGE_ACCOUNT" --auth-mode login --only-show-errors &>/dev/null; then
+              echo "Blob container $CONTAINER already exists, skipping."
+              CONTAINER_CREATED=true
+              break
+            fi
+            if [ $i -eq 1 ]; then
+              echo "Creating blob container $CONTAINER in $STORAGE_ACCOUNT..."
+            fi
+            if az storage container create \
               --name "$CONTAINER" \
               --account-name "$STORAGE_ACCOUNT" \
               --auth-mode login \
-              --only-show-errors
-          else
-            echo "Blob container $CONTAINER already exists, skipping."
+              --only-show-errors &>/dev/null; then
+              echo "Blob container $CONTAINER created successfully."
+              CONTAINER_CREATED=true
+              break
+            else
+              if [ $i -lt 10 ]; then
+                echo "Attempt $i/10: Container creation failed, retrying in 10 seconds..."
+                sleep 10
+              else
+                echo "Attempt $i/10: Container creation failed. Aborting after 10 attempts."
+              fi
+            fi
+          done
+          if [ "$CONTAINER_CREATED" = false ]; then
+            echo "Failed to create blob container $CONTAINER after 10 attempts."
+            exit 1
           fi
 
       - name: Bootstrap - Grant Storage Blob Data Contributor to SPN
