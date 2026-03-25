@@ -1,5 +1,4 @@
 resource_group_name  = "philips-testing"
 storage_account_name = "philiactestingsea02"
-key_vault_name       = "kv-philiactestingsea02"
 container_name       = "iac"
 key                  = "terraform-sharedservices.tfstate"
