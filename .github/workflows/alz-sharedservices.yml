@@ -114,7 +114,7 @@ jobs:
               --sku Standard_LRS \
               --kind StorageV2 \
               --min-tls-version TLS1_2 \
-              --allow-blob-public-access false \
+              --allow-blob-public-access true \
               --only-show-errors
           else
             echo "Storage account $STORAGE_ACCOUNT already exists, skipping."
