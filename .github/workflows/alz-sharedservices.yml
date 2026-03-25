@@ -27,8 +27,17 @@ env:
   TF_IN_AUTOMATION: true
 
 jobs:
+  bootstrap:
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/bootstrap-sharedservices.yml
+    with:
+      environment: ${{ github.event.inputs.environment }}
+      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
+    secrets: inherit
+
   terraform-plan:
     if: github.event_name == 'workflow_dispatch'
+    needs: bootstrap
     runs-on: ubuntu-latest
     environment: shared
     permissions:
@@ -94,110 +103,6 @@ jobs:
             echo "Actual: ${ACTUAL_SUBSCRIPTION_ID}"
             exit 1
           fi
-
-      - name: Bootstrap - Create Storage Account and Blob Container
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          TFVARS="./alz-platform/pattern1/sharedservices/backend.tfvars"
-          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
-          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
-          CONTAINER=$(awk -F '"' '/container_name/ {print $2}' "$TFVARS")
-          LOCATION=$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)
-          echo "Bootstrapping: $STORAGE_ACCOUNT/$CONTAINER in $RESOURCE_GROUP ($LOCATION)"
-          if ! az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --only-show-errors &>/dev/null; then
-            az storage account create \
-              --name "$STORAGE_ACCOUNT" \
-              --resource-group "$RESOURCE_GROUP" \
-              --location "$LOCATION" \
-              --sku Standard_LRS \
-              --kind StorageV2 \
-              --min-tls-version TLS1_2 \
-              --allow-blob-public-access true \
-              --only-show-errors
-          else
-            echo "Storage account $STORAGE_ACCOUNT already exists, skipping."
-          fi
-          if ! az storage container show --name "$CONTAINER" --account-name "$STORAGE_ACCOUNT" --auth-mode login --only-show-errors &>/dev/null; then
-            az storage container create \
-              --name "$CONTAINER" \
-              --account-name "$STORAGE_ACCOUNT" \
-              --auth-mode login \
-              --only-show-errors
-          else
-            echo "Blob container $CONTAINER already exists, skipping."
-          fi
-
-      - name: Bootstrap - Grant Storage Blob Data Contributor to SPN
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          TFVARS="./alz-platform/pattern1/sharedservices/backend.tfvars"
-          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
-          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
-          STORAGE_ID=$(az storage account show \
-            --name "$STORAGE_ACCOUNT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query id -o tsv)
-          SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-          if [ -z "$SP_OBJECT_ID" ]; then
-            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
-            exit 1
-          fi
-          EXISTING=$(az role assignment list \
-            --assignee "$SP_OBJECT_ID" \
-            --role "Storage Blob Data Contributor" \
-            --scope "$STORAGE_ID" \
-            --query "[].id" -o tsv 2>/dev/null)
-          if [ -z "$EXISTING" ]; then
-            echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
-            az role assignment create \
-              --assignee-object-id "$SP_OBJECT_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "Storage Blob Data Contributor" \
-              --scope "$STORAGE_ID" \
-              --only-show-errors
-            echo "Role assignment created. Verifying data-plane access in the next step."
-          else
-            echo "Storage Blob Data Contributor already assigned, skipping."
-          fi
-
-      - name: Validate Backend Blob Access
-        working-directory: ./alz-platform/pattern1/sharedservices
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          STORAGE_ACCOUNT_NAME=$(awk -F '"' '/storage_account_name/ {print $2}' backend.tfvars)
-          CONTAINER_NAME=$(awk -F '"' '/container_name/ {print $2}' backend.tfvars)
-          if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$CONTAINER_NAME" ]; then
-            echo "Unable to parse storage_account_name/container_name from backend.tfvars"
-            exit 1
-          fi
-          echo "Testing blob access using Azure AD login for: ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
-          MAX_RETRIES=10
-          RETRY_DELAY=30
-          ATTEMPT=1
-          while [ $ATTEMPT -le $MAX_RETRIES ]; do
-            if az storage container show \
-              --name "$CONTAINER_NAME" \
-              --account-name "$STORAGE_ACCOUNT_NAME" \
-              --auth-mode login \
-              --only-show-errors > /dev/null; then
-              echo "Blob access precheck passed on attempt $ATTEMPT/$MAX_RETRIES."
-              exit 0
-            fi
-            if [ $ATTEMPT -eq $MAX_RETRIES ]; then
-              echo "Blob access did not become ready after $MAX_RETRIES attempts."
-              exit 1
-            fi
-            echo "Blob access not ready yet. Waiting ${RETRY_DELAY}s before retry ${ATTEMPT}/${MAX_RETRIES}."
-            sleep $RETRY_DELAY
-            ATTEMPT=$((ATTEMPT + 1))
-          done
 
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/sharedservices
