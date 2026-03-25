@@ -157,9 +157,8 @@ jobs:
         run: |
           TFVARS="./alz-platform/pattern1/sharedservices/backend.tfvars"
           RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
-          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
           LOCATION=$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)
-          KV_NAME="kv-$(echo "$STORAGE_ACCOUNT" | cut -c1-21)"
+          KV_NAME=$(awk -F '"' '/key_vault_name/ {print $2}' "$TFVARS")
           echo "Creating Key Vault: $KV_NAME in $RESOURCE_GROUP ($LOCATION)"
           if ! az keyvault show --name "$KV_NAME" --resource-group "$RESOURCE_GROUP" --only-show-errors &>/dev/null; then
             az keyvault create \
