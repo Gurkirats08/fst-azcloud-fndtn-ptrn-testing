@@ -128,13 +128,28 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --query id -o tsv)
           SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-          echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
-          az role assignment create \
-            --assignee-object-id "$SP_OBJECT_ID" \
-            --assignee-principal-type ServicePrincipal \
+          if [ -z "$SP_OBJECT_ID" ]; then
+            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
+            exit 1
+          fi
+          EXISTING=$(az role assignment list \
+            --assignee "$SP_OBJECT_ID" \
             --role "Storage Blob Data Contributor" \
             --scope "$STORAGE_ID" \
-            --only-show-errors || echo "Role assignment already exists."
+            --query "[].id" -o tsv 2>/dev/null)
+          if [ -z "$EXISTING" ]; then
+            echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
+            az role assignment create \
+              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Storage Blob Data Contributor" \
+              --scope "$STORAGE_ID" \
+              --only-show-errors
+            echo "Waiting 30s for RBAC propagation..."
+            sleep 30
+          else
+            echo "Storage Blob Data Contributor already assigned, skipping."
+          fi
 
       - name: Bootstrap - Create Key Vault
         env:
@@ -172,13 +187,26 @@ jobs:
             --resource-group "$RESOURCE_GROUP" \
             --query id -o tsv)
           SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-          echo "Granting Key Vault Secrets Officer on: $KV_ID"
-          az role assignment create \
-            --assignee-object-id "$SP_OBJECT_ID" \
-            --assignee-principal-type ServicePrincipal \
+          if [ -z "$SP_OBJECT_ID" ]; then
+            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
+            exit 1
+          fi
+          EXISTING=$(az role assignment list \
+            --assignee "$SP_OBJECT_ID" \
             --role "Key Vault Secrets Officer" \
             --scope "$KV_ID" \
-            --only-show-errors || echo "Role assignment already exists."
+            --query "[].id" -o tsv 2>/dev/null)
+          if [ -z "$EXISTING" ]; then
+            echo "Granting Key Vault Secrets Officer on: $KV_ID"
+            az role assignment create \
+              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Key Vault Secrets Officer" \
+              --scope "$KV_ID" \
+              --only-show-errors
+          else
+            echo "Key Vault Secrets Officer already assigned, skipping."
+          fi
 
       - name: Terraform Init
         working-directory: ./alz-platform/pattern1/connectivity
