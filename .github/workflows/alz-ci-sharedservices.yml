@@ -113,34 +113,13 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ matrix.environment }}'."
             exit 1
           fi
-          cat > ~/.netrc <<EOF
-          machine github.com
-            login x-access-token
-            password ${GOLDREPO_PAT}
-          EOF
+          echo "machine github.com" > ~/.netrc
+          echo "  login x-access-token" >> ~/.netrc
+          echo "  password $GOLDREPO_PAT" >> ~/.netrc
           chmod 600 ~/.netrc
+          git config --global credential.helper store
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "git@github.com:"
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Validate Required ARM Secrets
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          MISSING_SECRETS=""
-          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
-          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
-          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
-          if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment '${{ matrix.environment }}':$MISSING_SECRETS"
-            exit 1
-          fi
 
       - name: Azure Login (OIDC)
         uses: azure/login@v1
