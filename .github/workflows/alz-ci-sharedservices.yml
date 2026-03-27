@@ -113,9 +113,13 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ matrix.environment }}'."
             exit 1
           fi
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "git@github.com:"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "ssh://git@github.com/"
+          ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Azure Login (OIDC)
         uses: azure/login@v1
