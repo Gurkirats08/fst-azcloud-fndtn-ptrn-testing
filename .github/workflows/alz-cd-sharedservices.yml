@@ -91,13 +91,9 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          echo "machine github.com" > ~/.netrc
-          echo "  login x-access-token" >> ~/.netrc
-          echo "  password $GOLDREPO_PAT" >> ~/.netrc
-          chmod 600 ~/.netrc
-          git config --global credential.helper store
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "git@github.com:"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "ssh://git@github.com/"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -239,13 +235,9 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          echo "machine github.com" > ~/.netrc
-          echo "  login x-access-token" >> ~/.netrc
-          echo "  password $GOLDREPO_PAT" >> ~/.netrc
-          chmod 600 ~/.netrc
-          git config --global credential.helper store
-          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "git@github.com:"
+          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "ssh://git@github.com/"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
