@@ -32,11 +32,6 @@ on:
         options:
           - ase
           - inc
-      environment:
-        description: GitHub environment name for this region
-        required: true
-        default: ase-shared
-        type: string
       expected_subscription_id:
         description: Expected Azure Subscription ID for safety validation
         required: false
@@ -46,11 +41,22 @@ jobs:
   bootstrap:
     if: github.ref_name == 'main' || github.ref_name == 'master'
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
+    environment: ${{ github.event_name == 'workflow_call' && inputs.environment || format('{0}-shared', inputs.region) }}
     permissions:
       id-token: write
       contents: read
     steps:
+      - name: Construct environment name
+        id: env
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_call" ]; then
+            ENVIRONMENT_NAME="${{ inputs.environment }}"
+          else
+            ENVIRONMENT_NAME="${{ inputs.region }}-shared"
+          fi
+          echo "name=${ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -65,7 +71,7 @@ jobs:
           if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
           if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
           if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment '${{ inputs.environment }}':$MISSING_SECRETS"
+            echo "Missing required secrets in GitHub Environment '${{ steps.env.outputs.name }}':$MISSING_SECRETS"
             exit 1
           fi
 

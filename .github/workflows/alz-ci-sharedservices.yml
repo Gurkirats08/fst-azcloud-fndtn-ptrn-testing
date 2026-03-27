@@ -30,7 +30,6 @@ env:
   TERRAFORM_VERSION: "1.6.0"
   TF_INPUT: false
   TF_IN_AUTOMATION: true
-  SHAREDSERVICES_ENV_SUFFIX: "-shared"
 
 permissions:
   id-token: write
@@ -57,7 +56,7 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             REGION="${{ github.event.inputs.region }}"
-            ENVIRONMENT_NAME="${{ github.event.inputs.environment }}"
+            ENVIRONMENT_NAME="${REGION}-shared"
             MATRIX="[{\"region\":\"${REGION}\",\"environment\":\"${ENVIRONMENT_NAME}\"}]"
             HAS_REGIONS="true"
           else
@@ -79,13 +78,13 @@ jobs:
             fi
 
             if [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"},{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"},{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
               HAS_REGIONS="true"
             elif [ "$HAS_ASE" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"}]"
               HAS_REGIONS="true"
             elif [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
               HAS_REGIONS="true"
             fi
           fi
@@ -106,23 +105,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup SSH for Private Module Access
+      - name: Setup PAT Auth for Private Module Access
         env:
-          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+          GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
         run: |
-          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
-            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in GitHub Environment '${{ matrix.environment }}'."
+          if [ -z "$GOLDREPO_PAT" ]; then
+            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ matrix.environment }}'."
             exit 1
           fi
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-          eval "$(ssh-agent -s)"
-          ssh-add ~/.ssh/id_rsa
-          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+          cat > ~/.netrc <<EOF
+          machine github.com
+            login x-access-token
+            password ${GOLDREPO_PAT}
+          EOF
+          chmod 600 ~/.netrc
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
