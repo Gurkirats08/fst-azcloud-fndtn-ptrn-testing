@@ -1,6 +1,12 @@
 name: ALZ Terraform CI
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "alz-platform/**"
+      - ".github/workflows/**"
   workflow_dispatch:
     inputs:
       stack:
@@ -24,7 +30,65 @@ env:
   TF_IN_AUTOMATION: true
 
 jobs:
-  terraform-quality:
+  terraform-quality-pr:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack:
+          - name: connectivity
+            path: ./alz-platform/pattern1/connectivity
+          - name: identity
+            path: ./alz-platform/pattern1/identity_dev
+          - name: management
+            path: ./alz-platform/pattern1/management
+          - name: security
+            path: ./alz-platform/pattern1/security
+          - name: sharedservices
+            path: ./alz-platform/pattern1/sharedservices
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Terraform Format Check (${{ matrix.stack.name }})
+        working-directory: ${{ matrix.stack.path }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init (Backend Disabled) (${{ matrix.stack.name }})
+        working-directory: ${{ matrix.stack.path }}
+        run: terraform init -backend=false
+
+      - name: Terraform Validate (${{ matrix.stack.name }})
+        working-directory: ${{ matrix.stack.path }}
+        run: terraform validate
+
+  terraform-quality-manual:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
       STACK: ${{ github.event.inputs.stack }}
