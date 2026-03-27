@@ -28,6 +28,8 @@ env:
   TERRAFORM_VERSION: "1.6.0"
   TF_INPUT: false
   TF_IN_AUTOMATION: true
+  GOLDREPO_REPOSITORY: Gurkirats08/fst-azcloud-goldrepo-testing
+  GOLDREPO_REF: main
 
 permissions:
   id-token: write
@@ -88,7 +90,7 @@ jobs:
           GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
         run: |
           if [ -z "$GOLDREPO_PAT" ]; then
-            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
+            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}': GOLDREPO_PAT"
             exit 1
           fi
           git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
@@ -277,6 +279,12 @@ jobs:
             echo "Actual: ${ACTUAL_SUBSCRIPTION_ID}"
             exit 1
           fi
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.resolve-region.outputs.artifact_name }}
+          path: ${{ needs.resolve-region.outputs.terraform_root }}
 
       - name: Terraform Init
         working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
