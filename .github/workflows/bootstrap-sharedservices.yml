@@ -37,6 +37,7 @@ env:
 
 jobs:
   bootstrap:
+    if: github.ref_name == 'main' || github.ref_name == 'master'
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     permissions:

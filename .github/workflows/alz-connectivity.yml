@@ -28,7 +28,7 @@ env:
 
 jobs:
   terraform-plan:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
     runs-on: ubuntu-latest
     environment: connectivity
     permissions:
@@ -470,7 +470,7 @@ jobs:
   deployment-summary:
     needs: terraform-plan
     runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch' && always()
+    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master') && always()
     steps:
       - name: Generate Deployment Summary
         run: |
