@@ -1,0 +1,198 @@
+name: ALZ Shared Services CI
+
+on:
+  pull_request:
+    paths:
+      - "alz-platform/ase/sharedservices/**"
+      - "alz-platform/inc/sharedservices/**"
+      - ".github/workflows/alz-ci-sharedservices.yml"
+  workflow_dispatch:
+    inputs:
+      region:
+        description: "Select shared services region/subscription"
+        required: true
+        default: ase
+        type: choice
+        options:
+          - ase
+          - inc
+      environment:
+        description: "GitHub environment to use for secrets"
+        required: true
+        default: ase-shared
+        type: string
+      expected_subscription_id:
+        description: "Expected Azure Subscription ID for safety validation"
+        required: false
+        type: string
+
+env:
+  TERRAFORM_VERSION: "1.6.0"
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+  SHAREDSERVICES_ENV_SUFFIX: "-shared"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  detect-regions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      has_regions: ${{ steps.detect.outputs.has_regions }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect shared services regions
+        id: detect
+        shell: bash
+        run: |
+          MATRIX="[]"
+          HAS_REGIONS="false"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            REGION="${{ github.event.inputs.region }}"
+            ENVIRONMENT_NAME="${{ github.event.inputs.environment }}"
+            MATRIX="[{\"region\":\"${REGION}\",\"environment\":\"${ENVIRONMENT_NAME}\"}]"
+            HAS_REGIONS="true"
+          else
+            CHANGED_FILES="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+            HAS_ASE="false"
+            HAS_INC="false"
+
+            if echo "$CHANGED_FILES" | grep -q '^alz-platform/ase/sharedservices/'; then
+              HAS_ASE="true"
+            fi
+
+            if echo "$CHANGED_FILES" | grep -q '^alz-platform/inc/sharedservices/'; then
+              HAS_INC="true"
+            fi
+
+            if echo "$CHANGED_FILES" | grep -q '^\.github/workflows/alz-ci-sharedservices\.yml$'; then
+              HAS_ASE="true"
+              HAS_INC="true"
+            fi
+
+            if [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"},{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              HAS_REGIONS="true"
+            elif [ "$HAS_ASE" = "true" ]; then
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              HAS_REGIONS="true"
+            elif [ "$HAS_INC" = "true" ]; then
+              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              HAS_REGIONS="true"
+            fi
+          fi
+
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "has_regions=${HAS_REGIONS}" >> "$GITHUB_OUTPUT"
+
+  terraform-plan-ci:
+    needs: detect-regions
+    if: needs.detect-regions.outputs.has_regions == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.detect-regions.outputs.matrix) }}
+    environment: ${{ matrix.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in GitHub Environment '${{ matrix.environment }}'."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Validate Required ARM Secrets
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
+          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment '${{ matrix.environment }}':$MISSING_SECRETS"
+            exit 1
+          fi
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ matrix.environment }}
+        run: |
+          terraform init \
+            -backend-config="backend.tfvars" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
+
+      - name: Terraform Validate
+        working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
+        timeout-minutes: 30
+        env:
+          ARM_USE_OIDC: true
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_environment: ${{ matrix.environment }}
+        run: |
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
+          TFVARS_FILE="${{ github.workspace }}/alz-platform/${{ matrix.region }}/sharedservices/sharedservices.tfvars"
+          if [ ! -f "$TFVARS_FILE" ]; then
+            echo "tfvars file not found: $TFVARS_FILE"
+            exit 1
+          fi
+          echo "Using tfvars file: $TFVARS_FILE"
+          terraform plan \
+            -var-file="$TFVARS_FILE" \
+            -out="tfplan-sharedservices-${{ matrix.region }}"
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-sharedservices-${{ matrix.region }}-ci
+          path: ./alz-platform/${{ matrix.region }}/sharedservices/tfplan-sharedservices-${{ matrix.region }}
+          retention-days: 7
