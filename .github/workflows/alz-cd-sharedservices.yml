@@ -264,6 +264,21 @@ jobs:
           fi
           echo "GOLDREPO_PAT is set."
 
+      - name: Verify PAT can access gold repo
+        env:
+          GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token ${GOLDREPO_PAT}" \
+            https://api.github.com/repos/Gurkirats08/fst-azcloud-goldrepo-testing)
+          echo "GitHub API response status: ${STATUS}"
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: PAT cannot access gold repo (HTTP ${STATUS})."
+            echo "Use a PAT that has read access to Gurkirats08/fst-azcloud-goldrepo-testing."
+            exit 1
+          fi
+          echo "PAT access verified successfully."
+
       - name: Checkout gold repo for local Terraform modules
         uses: actions/checkout@v4
         with:
