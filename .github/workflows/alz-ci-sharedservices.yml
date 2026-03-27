@@ -134,6 +134,15 @@ jobs:
           fi
           echo "PAT access verified successfully."
 
+      - name: Checkout gold repo for local Terraform modules
+        uses: actions/checkout@v4
+        with:
+          repository: Gurkirats08/fst-azcloud-goldrepo-testing
+          ref: main
+          token: ${{ secrets.GOLDREPO_PAT }}
+          path: goldrepo
+          persist-credentials: false
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:

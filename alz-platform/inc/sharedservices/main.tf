@@ -3,14 +3,14 @@ data "azurerm_client_config" "current" {}
 #needed
 module "resource_group" {
   for_each            = var.resourceGroups
-  source              = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/resourcegroup/v1.0?ref=main"
+  source              = "../../../goldrepo/modules-hub/terraform-modules/resourcegroup/v1.0"
   location            = each.value.location
   resource_group_name = each.value.name
   tags                = each.value.tags
 }
 
 module "sharedservices_user_assigned_identity" {
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/userassignedidentity/v1.0?ref=main"
+  source = "../../../goldrepo/modules-hub/terraform-modules/userassignedidentity/v1.0"
   name                = var.sharedservicesuan
   location            = var.mainLocation
   resource_group_name = var.resourceGroups["netRG"].name
@@ -40,7 +40,7 @@ module "sharedservices_user_assigned_identity" {
 # virtual networks
 module "sharedservices_vnet_module" {
   for_each                     = var.sharedservicesVirtualNetworks
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/virtualnetwork/v1.0?ref=main"
+  source = "../../../goldrepo/modules-hub/terraform-modules/virtualnetwork/v1.0"
   virtual_network_name         = each.value.VirtualNetworkName
   resource_group_name          = each.value.resourceGroupName
   location                     = var.mainLocation
@@ -53,7 +53,7 @@ module "sharedservices_vnet_module" {
 # subnets
 module "sharedservices_subnet_module" {
   for_each                  = var.sharedservicesSubnets
-  source = "git::https://github.com/Gurkirats08/fst-azcloud-goldrepo-testing.git//modules-hub/terraform-modules/subnet/v1.0?ref=main"
+  source = "../../../goldrepo/modules-hub/terraform-modules/subnet/v1.0"
   resource_group_name       = each.value.resourceGroupName
   virtual_network_name      = each.value.vnet_name
   subnet_name               = each.value.name

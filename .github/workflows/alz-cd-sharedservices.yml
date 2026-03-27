@@ -114,6 +114,15 @@ jobs:
           fi
           echo "PAT access verified successfully."
 
+      - name: Checkout gold repo for local Terraform modules
+        uses: actions/checkout@v4
+        with:
+          repository: Gurkirats08/fst-azcloud-goldrepo-testing
+          ref: main
+          token: ${{ secrets.GOLDREPO_PAT }}
+          path: goldrepo
+          persist-credentials: false
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -260,6 +269,15 @@ jobs:
           git config --local --unset-all http.https://github.com/.extraheader || true
           git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
           git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+
+      - name: Checkout gold repo for local Terraform modules
+        uses: actions/checkout@v4
+        with:
+          repository: Gurkirats08/fst-azcloud-goldrepo-testing
+          ref: main
+          token: ${{ secrets.GOLDREPO_PAT }}
+          path: goldrepo
+          persist-credentials: false
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
