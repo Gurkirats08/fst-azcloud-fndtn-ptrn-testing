@@ -3,10 +3,19 @@ name: ALZ Shared Services CD
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Select Environment'
+      region:
+        description: 'Select shared services region/subscription'
         required: true
-        default: 'shared'
+        default: 'ase'
+        type: choice
+        options:
+          - ase
+          - inc
+      environment:
+        description: 'GitHub environment to use for secrets and approvals'
+        required: true
+        default: 'ase-shared'
+        type: string
       action:
         description: 'Terraform Action'
         required: true
@@ -31,19 +40,48 @@ permissions:
   contents: read
 
 jobs:
+  resolve-region:
+    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
+    runs-on: ubuntu-latest
+    outputs:
+      region: ${{ steps.resolve.outputs.region }}
+      environment_name: ${{ steps.resolve.outputs.environment_name }}
+      terraform_root: ${{ steps.resolve.outputs.terraform_root }}
+      tfvars_file: ${{ steps.resolve.outputs.tfvars_file }}
+      plan_file: ${{ steps.resolve.outputs.plan_file }}
+      artifact_name: ${{ steps.resolve.outputs.artifact_name }}
+    steps:
+      - name: Resolve region settings
+        id: resolve
+        shell: bash
+        run: |
+          REGION="${{ github.event.inputs.region }}"
+          ENVIRONMENT_NAME="${{ github.event.inputs.environment }}"
+
+          echo "region=${REGION}" >> "$GITHUB_OUTPUT"
+          echo "environment_name=${ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"
+          echo "terraform_root=./alz-platform/${REGION}/sharedservices" >> "$GITHUB_OUTPUT"
+          echo "tfvars_file=${GITHUB_WORKSPACE}/alz-platform/${REGION}/sharedservices/sharedservices.tfvars" >> "$GITHUB_OUTPUT"
+          echo "plan_file=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
+          echo "artifact_name=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
+
   bootstrap:
+    needs: resolve-region
     if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
     uses: ./.github/workflows/bootstrap-sharedservices.yml
     with:
-      environment: ${{ github.event.inputs.environment }}
+      region: ${{ needs.resolve-region.outputs.region }}
+      environment: ${{ needs.resolve-region.outputs.environment_name }}
       expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
     secrets: inherit
 
   terraform-plan:
+    needs:
+      - resolve-region
+      - bootstrap
     if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
-    needs: bootstrap
     runs-on: ubuntu-latest
-    environment: shared
+    environment: ${{ needs.resolve-region.outputs.environment_name }}
     permissions:
       id-token: write
       contents: read
@@ -51,13 +89,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       - name: Setup SSH for Private Module Access
         env:
           MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
         run: |
           if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
-            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
           mkdir -p ~/.ssh
@@ -69,6 +106,7 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
           git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -85,7 +123,7 @@ jobs:
           if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
           if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
           if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            echo "Missing required secrets in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}':$MISSING_SECRETS"
             exit 1
           fi
 
@@ -109,12 +147,12 @@ jobs:
           fi
 
       - name: Terraform Init
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -122,27 +160,27 @@ jobs:
             -backend-config="use_oidc=true"
 
       - name: Terraform Format
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         continue-on-error: true
         run: terraform fmt -recursive
 
       - name: Terraform Validate
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         run: terraform validate
 
       - name: Terraform Plan
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         timeout-minutes: 30
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
-          TFVARS_FILE="${{ github.workspace }}/alz-platform/pattern1/sharedservices/sharedservices.tfvars"
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
+          TFVARS_FILE="${{ needs.resolve-region.outputs.tfvars_file }}"
           if [ ! -f "$TFVARS_FILE" ]; then
             echo "tfvars file not found: $TFVARS_FILE"
             exit 1
@@ -154,7 +192,7 @@ jobs:
             echo "Terraform plan attempt $((RETRY + 1))/$MAX_RETRIES"
             terraform plan \
               -var-file="$TFVARS_FILE" \
-              -out=tfplan-sharedservices && break
+              -out="${{ needs.resolve-region.outputs.plan_file }}" && break
             RETRY=$((RETRY + 1))
             if [ $RETRY -lt $MAX_RETRIES ]; then
               echo "Plan failed, waiting 30 seconds before retry..."
@@ -169,25 +207,29 @@ jobs:
       - name: Upload Plan Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tfplan-sharedservices
-          path: ./alz-platform/pattern1/sharedservices/tfplan-sharedservices
+          name: ${{ needs.resolve-region.outputs.artifact_name }}
+          path: ${{ needs.resolve-region.outputs.terraform_root }}/${{ needs.resolve-region.outputs.plan_file }}
           retention-days: 7
 
   approval:
-    needs: terraform-plan
+    needs:
+      - resolve-region
+      - terraform-plan
     runs-on: ubuntu-latest
     if: needs.terraform-plan.result == 'success' && (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy')
     environment:
-      name: ${{ github.event.inputs.environment }}
+      name: ${{ needs.resolve-region.outputs.environment_name }}
     steps:
       - name: Approval Checkpoint
         run: |
-          echo "Approval granted for shared services deployment to ${{ github.event.inputs.environment }}"
+          echo "Approval granted for shared services deployment to ${{ needs.resolve-region.outputs.environment_name }}"
 
   terraform-apply:
-    needs: approval
+    needs:
+      - resolve-region
+      - approval
     runs-on: ubuntu-latest
-    environment: shared
+    environment: ${{ needs.resolve-region.outputs.environment_name }}
     if: needs.approval.result == 'success' && github.event.inputs.action == 'apply'
     permissions:
       id-token: write
@@ -196,13 +238,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       - name: Setup SSH for Private Module Access
         env:
           MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
         run: |
           if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
-            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
           mkdir -p ~/.ssh
@@ -214,6 +255,7 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
           git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -230,7 +272,7 @@ jobs:
           if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
           if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
           if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            echo "Missing required secrets in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}':$MISSING_SECRETS"
             exit 1
           fi
 
@@ -256,16 +298,16 @@ jobs:
       - name: Download Plan Artifact
         uses: actions/download-artifact@v4
         with:
-          name: tfplan-sharedservices
-          path: ./alz-platform/pattern1/sharedservices
+          name: ${{ needs.resolve-region.outputs.artifact_name }}
+          path: ${{ needs.resolve-region.outputs.terraform_root }}
 
       - name: Terraform Init
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -274,27 +316,29 @@ jobs:
 
       - name: Terraform Apply
         timeout-minutes: 60
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
-          if [ -f "tfplan-sharedservices" ]; then
-            terraform apply -auto-approve "tfplan-sharedservices"
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
+          if [ -f "${{ needs.resolve-region.outputs.plan_file }}" ]; then
+            terraform apply -auto-approve "${{ needs.resolve-region.outputs.plan_file }}"
           else
             echo "Plan file not found. Skipping apply."
             exit 1
           fi
 
   terraform-destroy:
-    needs: approval
+    needs:
+      - resolve-region
+      - approval
     runs-on: ubuntu-latest
-    environment: shared
+    environment: ${{ needs.resolve-region.outputs.environment_name }}
     if: needs.approval.result == 'success' && github.event.inputs.action == 'destroy'
     permissions:
       id-token: write
@@ -303,13 +347,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       - name: Setup SSH for Private Module Access
         env:
           MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
         run: |
           if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
-            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
           mkdir -p ~/.ssh
@@ -321,6 +364,7 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/id_rsa
           git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
@@ -337,7 +381,7 @@ jobs:
           if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
           if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
           if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            echo "Missing required secrets in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}':$MISSING_SECRETS"
             exit 1
           fi
 
@@ -361,12 +405,12 @@ jobs:
           fi
 
       - name: Terraform Init
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -375,17 +419,17 @@ jobs:
 
       - name: Terraform Destroy
         timeout-minutes: 60
-        working-directory: ./alz-platform/pattern1/sharedservices
+        working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
           ARM_USE_OIDC: true
-          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
-          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-          TF_VAR_environment: ${{ github.event.inputs.environment }}
+          TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
         run: |
-          TFVARS_FILE="${{ github.workspace }}/alz-platform/pattern1/sharedservices/sharedservices.tfvars"
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
+          TFVARS_FILE="${{ needs.resolve-region.outputs.tfvars_file }}"
           if [ ! -f "$TFVARS_FILE" ]; then
             echo "tfvars file not found: $TFVARS_FILE"
             exit 1
@@ -393,7 +437,9 @@ jobs:
           terraform destroy -auto-approve -var-file="$TFVARS_FILE"
 
   deployment-summary:
-    needs: terraform-plan
+    needs:
+      - resolve-region
+      - terraform-plan
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master') && always()
     steps:
@@ -401,6 +447,7 @@ jobs:
         run: |
           echo "## ALZ Shared Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ needs.resolve-region.outputs.region }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ needs.resolve-region.outputs.environment_name }}" >> $GITHUB_STEP_SUMMARY
           echo "**Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
           echo "**Workflow Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
