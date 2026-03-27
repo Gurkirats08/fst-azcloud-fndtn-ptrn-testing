@@ -91,12 +91,11 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          cat > ~/.netrc <<EOF
-          machine github.com
-            login x-access-token
-            password ${GOLDREPO_PAT}
-          EOF
+          echo "machine github.com" > ~/.netrc
+          echo "  login x-access-token" >> ~/.netrc
+          echo "  password $GOLDREPO_PAT" >> ~/.netrc
           chmod 600 ~/.netrc
+          git config --global credential.helper store
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "git@github.com:"
 
@@ -146,6 +145,7 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
+          GIT_TERMINAL_PROMPT: 0
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
@@ -239,12 +239,11 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          cat > ~/.netrc <<EOF
-          machine github.com
-            login x-access-token
-            password ${GOLDREPO_PAT}
-          EOF
+          echo "machine github.com" > ~/.netrc
+          echo "  login x-access-token" >> ~/.netrc
+          echo "  password $GOLDREPO_PAT" >> ~/.netrc
           chmod 600 ~/.netrc
+          git config --global credential.helper store
           git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
           git config --global url."https://github.com/".insteadOf "git@github.com:"
 
@@ -287,12 +286,6 @@ jobs:
             exit 1
           fi
 
-      - name: Download Plan Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.resolve-region.outputs.artifact_name }}
-          path: ${{ needs.resolve-region.outputs.terraform_root }}
-
       - name: Terraform Init
         working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
         env:
@@ -300,6 +293,7 @@ jobs:
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ needs.resolve-region.outputs.environment_name }}
+          GIT_TERMINAL_PROMPT: 0
         run: |
           terraform init \
             -backend-config="backend.tfvars" \
