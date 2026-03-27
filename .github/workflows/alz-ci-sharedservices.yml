@@ -113,9 +113,27 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ matrix.environment }}'."
             exit 1
           fi
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "git@github.com:"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "ssh://git@github.com/"
+          ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+
+      - name: Verify PAT can access gold repo
+        env:
+          GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: token ${GOLDREPO_PAT}" \
+            https://api.github.com/repos/Gurkirats08/fst-azcloud-goldrepo-testing)
+          echo "GitHub API response status: ${STATUS}"
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: PAT cannot access gold repo (HTTP ${STATUS}). Check that GOLDREPO_PAT has 'repo' scope (classic) or 'Contents: Read' for fst-azcloud-goldrepo-testing (fine-grained)."
+            exit 1
+          fi
+          echo "PAT access verified successfully."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
 
       - name: Azure Login (OIDC)
         uses: azure/login@v1
