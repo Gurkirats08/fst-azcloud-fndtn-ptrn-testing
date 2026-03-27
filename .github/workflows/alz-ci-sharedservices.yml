@@ -2,19 +2,119 @@ name: ALZ Shared Services CI
 
 on:
   pull_request:
-    branches:
-      - main
     paths:
       - "alz-platform/pattern1/sharedservices/**"
       - ".github/workflows/alz-ci-sharedservices.yml"
-      - ".github/workflows/alz-ci-template.yml"
   workflow_dispatch:
+    inputs:
+      expected_subscription_id:
+        description: "Expected Azure Subscription ID for safety validation"
+        required: false
+        type: string
+
+env:
+  TERRAFORM_VERSION: "1.6.0"
+  TF_INPUT: false
+  TF_IN_AUTOMATION: true
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
-  ci:
-    uses: ./.github/workflows/alz-ci-template.yml
-    with:
-      stack_name: sharedservices
-      stack_path: ./alz-platform/pattern1/sharedservices
-      environment_name: shared
-    secrets: inherit
+  terraform-plan-ci:
+    runs-on: ubuntu-latest
+    environment: shared
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup SSH for Private Module Access
+        env:
+          MODULES_REPO_SSH_PRIVATE_KEY: ${{ secrets.MODULES_REPO_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$MODULES_REPO_SSH_PRIVATE_KEY" ]; then
+            echo "Missing required secret MODULES_REPO_SSH_PRIVATE_KEY in this GitHub Environment."
+            exit 1
+          fi
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$MODULES_REPO_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/id_rsa
+          git config --global url."ssh://git@github.com/".insteadOf "https://github.com/"
+
+      - name: Validate Required ARM Secrets
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
+          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment 'shared':$MISSING_SECRETS"
+            exit 1
+          fi
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        working-directory: ./alz-platform/pattern1/sharedservices
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_environment: shared
+        run: |
+          terraform init \
+            -backend-config="backend.tfvars" \
+            -backend-config="use_azuread_auth=true" \
+            -backend-config="use_oidc=true"
+
+      - name: Terraform Format Check
+        working-directory: ./alz-platform/pattern1/sharedservices
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Validate
+        working-directory: ./alz-platform/pattern1/sharedservices
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: ./alz-platform/pattern1/sharedservices
+        timeout-minutes: 30
+        env:
+          ARM_USE_OIDC: true
+          ARM_OIDC_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ARM_OIDC_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+          TF_VAR_environment: shared
+        run: |
+          TFVARS_FILE="${{ github.workspace }}/alz-platform/pattern1/sharedservices/sharedservices.tfvars"
+          if [ ! -f "$TFVARS_FILE" ]; then
+            echo "tfvars file not found: $TFVARS_FILE"
+            exit 1
+          fi
+          echo "Using tfvars file: $TFVARS_FILE"
+          terraform plan \
+            -var-file="$TFVARS_FILE" \
+            -out=tfplan-sharedservices
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-sharedservices-ci
+          path: ./alz-platform/pattern1/sharedservices/tfplan-sharedservices
+          retention-days: 7
