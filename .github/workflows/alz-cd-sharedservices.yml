@@ -95,6 +95,7 @@ jobs:
           fi
           ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
           git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+<<<<<<< HEAD
 
       - name: Verify PAT can access gold repo
         env:
@@ -109,6 +110,8 @@ jobs:
             exit 1
           fi
           echo "PAT access verified successfully."
+=======
+>>>>>>> 57a6b0b124cb1e51b4d7adcb04255b7bee75633d
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
@@ -250,9 +253,8 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "https://github.com/"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "git@github.com:"
-          git config --global url."https://x-access-token:${GOLDREPO_PAT}@github.com/".insteadOf "ssh://git@github.com/"
+          ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
+          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
