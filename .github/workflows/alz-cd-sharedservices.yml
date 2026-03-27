@@ -95,10 +95,7 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}': GOLDREPO_PAT"
             exit 1
           fi
-          ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
-          git config --local --unset-all http.https://github.com/.extraheader || true
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
-          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+          echo "GOLDREPO_PAT is set."
 
       - name: Verify PAT can access gold repo
         env:
@@ -265,10 +262,7 @@ jobs:
             echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
-          ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
-          git config --local --unset-all http.https://github.com/.extraheader || true
-          git config --local http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
-          git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
+          echo "GOLDREPO_PAT is set."
 
       - name: Checkout gold repo for local Terraform modules
         uses: actions/checkout@v4
