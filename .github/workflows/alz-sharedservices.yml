@@ -1,4 +1,4 @@
-name: ALZ Shared Services Deployment
+name: ALZ Shared Services CD
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: ALZ Security Deployment
+name: ALZ Security CD
 
 on:
   workflow_dispatch:

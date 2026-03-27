@@ -1,4 +1,4 @@
-name: ALZ Identity Deployment
+name: ALZ Identity CD
 
 on:
   workflow_dispatch:
