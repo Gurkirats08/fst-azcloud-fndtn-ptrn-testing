@@ -2,10 +2,7 @@ name: ALZ Shared Services CI
 
 on:
   pull_request:
-    paths:
-      - "alz-platform/ase/sharedservices/**"
-      - "alz-platform/inc/sharedservices/**"
-      - ".github/workflows/alz-ci-sharedservices.yml"
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       region:
@@ -34,8 +31,35 @@ env:
 permissions:
   id-token: write
   contents: read
+  pull-requests: read
 
 jobs:
+  validate-labels:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check PR has required labels
+        run: |
+          LABELS='${{ toJSON(github.event.pull_request.labels) }}'
+          echo "PR Labels: $LABELS"
+          
+          HAS_REQUIRED_LABEL="false"
+          
+          if echo "$LABELS" | grep -q '"name":"ase-shared"' || echo "$LABELS" | grep -q '"name":"inc-shared"'; then
+            HAS_REQUIRED_LABEL="true"
+          fi
+          
+          if [ "$HAS_REQUIRED_LABEL" = "false" ]; then
+            echo "❌ ERROR: PR must have at least one of these labels to proceed:"
+            echo "  - ase-shared (for ASE region testing)"
+            echo "  - inc-shared (for INC region testing)"
+            echo ""
+            echo "Please add a label to this PR before it can be merged."
+            exit 1
+          fi
+          
+          echo "✅ PR has required label(s) for CI"
+
   detect-regions:
     runs-on: ubuntu-latest
     outputs:
@@ -47,7 +71,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect shared services regions
+      - name: Detect shared services regions from PR labels
         id: detect
         shell: bash
         run: |
@@ -55,29 +79,34 @@ jobs:
           HAS_REGIONS="false"
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Workflow dispatch uses manual input
             REGION="${{ github.event.inputs.region }}"
             ENVIRONMENT_NAME="${REGION}-shared"
             MATRIX="[{\"region\":\"${REGION}\",\"environment\":\"${ENVIRONMENT_NAME}\"}]"
             HAS_REGIONS="true"
-          else
-            CHANGED_FILES="$(git diff --name-only "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}")"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Extract labels from PR
+            LABELS='${{ toJSON(github.event.pull_request.labels) }}'
+            echo "PR Labels: $LABELS"
+            
             HAS_ASE="false"
             HAS_INC="false"
-
-            if echo "$CHANGED_FILES" | grep -q '^alz-platform/ase/sharedservices/'; then
+            
+            # Check if PR has required labels
+            if echo "$LABELS" | grep -q '"name":"ase-shared"'; then
               HAS_ASE="true"
             fi
-
-            if echo "$CHANGED_FILES" | grep -q '^alz-platform/inc/sharedservices/'; then
+            
+            if echo "$LABELS" | grep -q '"name":"inc-shared"'; then
               HAS_INC="true"
             fi
-
-            if echo "$CHANGED_FILES" | grep -q '^\.github/workflows/alz-ci-sharedservices\.yml$'; then
-              HAS_ASE="true"
-              HAS_INC="true"
-            fi
-
-            if [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
+            
+            # Require at least one label
+            if [ "$HAS_ASE" = "false" ] && [ "$HAS_INC" = "false" ]; then
+              echo "ERROR: PR must have at least one label: 'ase-shared' or 'inc-shared'"
+              echo "PR has no relevant labels and cannot proceed."
+              HAS_REGIONS="false"
+            elif [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
               MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"},{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
               HAS_REGIONS="true"
             elif [ "$HAS_ASE" = "true" ]; then
@@ -93,8 +122,10 @@ jobs:
           echo "has_regions=${HAS_REGIONS}" >> "$GITHUB_OUTPUT"
 
   terraform-plan-ci:
-    needs: detect-regions
-    if: needs.detect-regions.outputs.has_regions == 'true'
+    needs: [validate-labels, detect-regions]
+    if: |
+      needs.detect-regions.outputs.has_regions == 'true' &&
+      (github.event_name != 'pull_request' || needs.validate-labels.result == 'success')
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
