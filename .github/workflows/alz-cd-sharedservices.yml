@@ -11,15 +11,6 @@ on:
         options:
           - ase
           - inc
-      environment:
-        description: 'GitHub environment to use for secrets and approvals'
-        required: true
-        default: 'shared'
-        type: choice
-        options:
-          - shared
-          - ase-shared
-          - inc-shared
       action:
         description: 'Terraform Action'
         required: true
@@ -59,7 +50,7 @@ jobs:
         shell: bash
         run: |
           REGION="${{ github.event.inputs.region }}"
-          ENVIRONMENT_NAME="${{ github.event.inputs.environment }}"
+          ENVIRONMENT_NAME="${REGION}-shared"
 
           echo "region=${REGION}" >> "$GITHUB_OUTPUT"
           echo "environment_name=${ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"

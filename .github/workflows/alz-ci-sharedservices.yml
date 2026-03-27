@@ -30,7 +30,6 @@ env:
   TERRAFORM_VERSION: "1.6.0"
   TF_INPUT: false
   TF_IN_AUTOMATION: true
-  SHAREDSERVICES_ENV_SUFFIX: "-shared"
 
 permissions:
   id-token: write
@@ -57,7 +56,7 @@ jobs:
 
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             REGION="${{ github.event.inputs.region }}"
-            ENVIRONMENT_NAME="${{ github.event.inputs.environment }}"
+            ENVIRONMENT_NAME="${REGION}-shared"
             MATRIX="[{\"region\":\"${REGION}\",\"environment\":\"${ENVIRONMENT_NAME}\"}]"
             HAS_REGIONS="true"
           else
@@ -79,13 +78,13 @@ jobs:
             fi
 
             if [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"},{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"},{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
               HAS_REGIONS="true"
             elif [ "$HAS_ASE" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"}]"
               HAS_REGIONS="true"
             elif [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc${SHAREDSERVICES_ENV_SUFFIX}\"}]"
+              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
               HAS_REGIONS="true"
             fi
           fi
