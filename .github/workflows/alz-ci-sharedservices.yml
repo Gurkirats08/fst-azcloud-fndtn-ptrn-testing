@@ -124,16 +124,152 @@ jobs:
 
   bootstrap:
     needs: detect-regions
-    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
-    uses: ./.github/workflows/bootstrap-sharedservices.yml
-    with:
-      region: ${{ needs.detect-regions.outputs.region }}
-      environment: ${{ needs.detect-regions.outputs.environment_name }}
-      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
-    secrets: inherit
+    if: needs.detect-regions.outputs.has_regions == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.detect-regions.outputs.matrix) }}
+    environment: ${{ matrix.environment }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate Required ARM Secrets
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
+          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment '${{ matrix.environment }}':$MISSING_SECRETS"
+            exit 1
+          fi
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
+      - name: Bootstrap - Create Storage Account and Blob Container
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
+          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
+          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
+          CONTAINER=$(awk -F '"' '/container_name/ {print $2}' "$TFVARS")
+          LOCATION=$(az group show --name "$RESOURCE_GROUP" --query location -o tsv)
+          echo "Bootstrapping: $STORAGE_ACCOUNT/$CONTAINER in $RESOURCE_GROUP ($LOCATION)"
+          if ! az storage account show --name "$STORAGE_ACCOUNT" --resource-group "$RESOURCE_GROUP" --only-show-errors &>/dev/null; then
+            az storage account create \
+              --name "$STORAGE_ACCOUNT" \
+              --resource-group "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --sku Standard_LRS \
+              --kind StorageV2 \
+              --min-tls-version TLS1_2 \
+              --allow-blob-public-access true \
+              --only-show-errors
+          else
+            echo "Storage account $STORAGE_ACCOUNT already exists, skipping."
+          fi
+          CONTAINER_CREATED=false
+          for i in {1..10}; do
+            if az storage container show --name "$CONTAINER" --account-name "$STORAGE_ACCOUNT" --auth-mode login --only-show-errors &>/dev/null; then
+              echo "Blob container $CONTAINER already exists, skipping."
+              CONTAINER_CREATED=true
+              break
+            fi
+            if [ $i -eq 1 ]; then
+              echo "Creating blob container $CONTAINER in $STORAGE_ACCOUNT..."
+            fi
+            if az storage container create \
+              --name "$CONTAINER" \
+              --account-name "$STORAGE_ACCOUNT" \
+              --auth-mode login \
+              --only-show-errors &>/dev/null; then
+              echo "Blob container $CONTAINER created successfully."
+              CONTAINER_CREATED=true
+              break
+            else
+              if [ $i -lt 10 ]; then
+                echo "Attempt $i/10: Container creation failed, retrying in 10 seconds..."
+                sleep 10
+              else
+                echo "Attempt $i/10: Container creation failed. Aborting after 10 attempts."
+              fi
+            fi
+          done
+          if [ "$CONTAINER_CREATED" = false ]; then
+            echo "Failed to create blob container $CONTAINER after 10 attempts."
+            exit 1
+          fi
+
+      - name: Bootstrap - Grant Storage Blob Data Contributor to SPN
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
+          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
+          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
+          STORAGE_ID=$(az storage account show \
+            --name "$STORAGE_ACCOUNT" \
+            --resource-group "$RESOURCE_GROUP" \
+            --query id -o tsv)
+          SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
+          if [ -z "$SP_OBJECT_ID" ]; then
+            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
+            exit 1
+          fi
+          EXISTING=$(az role assignment list \
+            --assignee "$SP_OBJECT_ID" \
+            --role "Storage Blob Data Contributor" \
+            --scope "$STORAGE_ID" \
+            --query "[].id" -o tsv 2>/dev/null)
+          if [ -z "$EXISTING" ]; then
+            echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
+            az role assignment create \
+              --assignee-object-id "$SP_OBJECT_ID" \
+              --assignee-principal-type ServicePrincipal \
+              --role "Storage Blob Data Contributor" \
+              --scope "$STORAGE_ID" \
+              --only-show-errors
+            echo "Role assignment created. Verifying data-plane access in the next step."
+          else
+            echo "Storage Blob Data Contributor already assigned, skipping."
+          fi
+
+      - name: Validate Backend Blob Access
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
+          STORAGE_ACCOUNT_NAME=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
+          CONTAINER_NAME=$(awk -F '"' '/container_name/ {print $2}' "$TFVARS")
+          if [ -z "$STORAGE_ACCOUNT_NAME" ] || [ -z "$CONTAINER_NAME" ]; then
+            echo "Unable to parse storage_account_name/container_name from backend.tfvars"
+            exit 1
+          fi
+          echo "Backend storage account and container validated successfully."
+          echo "Storage Account: $STORAGE_ACCOUNT_NAME"
+          echo "Container: $CONTAINER_NAME"
 
   terraform-plan-ci:
-    needs: [validate-labels, detect-regions]
+    needs: [validate-labels, detect-regions, bootstrap]
     if: |
       needs.detect-regions.outputs.has_regions == 'true' &&
       (github.event_name != 'pull_request' || needs.validate-labels.result == 'success')
