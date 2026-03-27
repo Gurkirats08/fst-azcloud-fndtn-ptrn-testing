@@ -116,7 +116,6 @@ jobs:
           ENCODED=$(echo -n "x-access-token:${GOLDREPO_PAT}" | base64 -w 0)
           git config --global http.https://github.com/.extraheader "AUTHORIZATION: basic ${ENCODED}"
 
-<<<<<<< HEAD
       - name: Verify PAT can access gold repo
         env:
           GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
@@ -131,8 +130,6 @@ jobs:
           fi
           echo "PAT access verified successfully."
 
-=======
->>>>>>> 57a6b0b124cb1e51b4d7adcb04255b7bee75633d
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
