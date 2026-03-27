@@ -45,7 +45,8 @@ jobs:
           
           HAS_REQUIRED_LABEL="false"
           
-          if echo "$LABELS" | grep -q '"name":"ase-shared"' || echo "$LABELS" | grep -q '"name":"inc-shared"'; then
+          # Use regex to match label names with flexible spacing in JSON
+          if echo "$LABELS" | grep -qE '"name"\s*:\s*"(ase-shared|inc-shared)"'; then
             HAS_REQUIRED_LABEL="true"
           fi
           
@@ -92,12 +93,12 @@ jobs:
             HAS_ASE="false"
             HAS_INC="false"
             
-            # Check if PR has required labels
-            if echo "$LABELS" | grep -q '"name":"ase-shared"'; then
+            # Check if PR has required labels (using regex for flexible JSON formatting)
+            if echo "$LABELS" | grep -qE '"name"\s*:\s*"ase-shared"'; then
               HAS_ASE="true"
             fi
             
-            if echo "$LABELS" | grep -q '"name":"inc-shared"'; then
+            if echo "$LABELS" | grep -qE '"name"\s*:\s*"inc-shared"'; then
               HAS_INC="true"
             fi
             
