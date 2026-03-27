@@ -122,6 +122,16 @@ jobs:
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
           echo "has_regions=${HAS_REGIONS}" >> "$GITHUB_OUTPUT"
 
+  bootstrap:
+    needs: detect-regions
+    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
+    uses: ./.github/workflows/bootstrap-sharedservices.yml
+    with:
+      region: ${{ needs.detect-regions.outputs.region }}
+      environment: ${{ needs.detect-regions.outputs.environment_name }}
+      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
+    secrets: inherit
+
   terraform-plan-ci:
     needs: [validate-labels, detect-regions]
     if: |
