@@ -1,0 +1,20 @@
+name: ALZ Management CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "alz-platform/pattern1/management/**"
+      - ".github/workflows/alz-ci-management.yml"
+      - ".github/workflows/alz-ci-template.yml"
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/alz-ci-template.yml
+    with:
+      stack_name: management
+      stack_path: ./alz-platform/pattern1/management
+      environment_name: management
+    secrets: inherit

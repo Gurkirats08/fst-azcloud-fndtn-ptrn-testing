@@ -1,0 +1,20 @@
+name: ALZ Security CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "alz-platform/pattern1/security/**"
+      - ".github/workflows/alz-ci-security.yml"
+      - ".github/workflows/alz-ci-template.yml"
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/alz-ci-template.yml
+    with:
+      stack_name: security
+      stack_path: ./alz-platform/pattern1/security
+      environment_name: security
+    secrets: inherit

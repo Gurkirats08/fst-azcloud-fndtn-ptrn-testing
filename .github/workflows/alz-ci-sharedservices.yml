@@ -1,0 +1,20 @@
+name: ALZ Shared Services CI
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "alz-platform/pattern1/sharedservices/**"
+      - ".github/workflows/alz-ci-sharedservices.yml"
+      - ".github/workflows/alz-ci-template.yml"
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/alz-ci-template.yml
+    with:
+      stack_name: sharedservices
+      stack_path: ./alz-platform/pattern1/sharedservices
+      environment_name: shared
+    secrets: inherit
