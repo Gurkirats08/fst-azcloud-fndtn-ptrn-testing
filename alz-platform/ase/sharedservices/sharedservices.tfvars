@@ -16,7 +16,7 @@ resourceGroups = {
     }
   },
   laRG = {
-    name     = "rg-gov-sharedservices-sea-001"
+    name     = "rg-gov-sharedservices-sea-002"
     location = "southeastasia"
     tags = {
       team = "Sec-Team"
