@@ -61,20 +61,8 @@ jobs:
           echo "plan_file=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
 
-  bootstrap:
-    needs: resolve-region
-    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
-    uses: ./.github/workflows/bootstrap-sharedservices.yml
-    with:
-      region: ${{ needs.resolve-region.outputs.region }}
-      environment: ${{ needs.resolve-region.outputs.environment_name }}
-      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
-    secrets: inherit
-
   terraform-plan:
-    needs:
-      - resolve-region
-      - bootstrap
+    needs: resolve-region
     if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-region.outputs.environment_name }}
@@ -87,12 +75,34 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Validate Required ARM Secrets
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
+          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
+          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required secrets in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}':$MISSING_SECRETS"
+            exit 1
+          fi
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.ARM_CLIENT_ID }}
+          tenant-id: ${{ secrets.ARM_TENANT_ID }}
+          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+
       - name: Setup PAT Auth for Private Module Access
         env:
           GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
         run: |
           if [ -z "$GOLDREPO_PAT" ]; then
-            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}': GOLDREPO_PAT"
+            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}'."
             exit 1
           fi
           echo "GOLDREPO_PAT is set."
@@ -124,40 +134,6 @@ jobs:
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: ${{ env.TERRAFORM_VERSION }}
-
-      - name: Validate Required ARM Secrets
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          MISSING_SECRETS=""
-          if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
-          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
-          if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
-          if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment '${{ needs.resolve-region.outputs.environment_name }}':$MISSING_SECRETS"
-            exit 1
-          fi
-
-      - name: Azure Login (OIDC)
-        uses: azure/login@v1
-        with:
-          client-id: ${{ secrets.ARM_CLIENT_ID }}
-          tenant-id: ${{ secrets.ARM_TENANT_ID }}
-          subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-
-      - name: Validate Requested Subscription ID
-        if: ${{ github.event.inputs.expected_subscription_id != '' }}
-        run: |
-          REQUESTED_SUBSCRIPTION_ID="${{ github.event.inputs.expected_subscription_id }}"
-          ACTUAL_SUBSCRIPTION_ID="${{ secrets.ARM_SUBSCRIPTION_ID }}"
-          if [ "${REQUESTED_SUBSCRIPTION_ID,,}" != "${ACTUAL_SUBSCRIPTION_ID,,}" ]; then
-            echo "Requested subscription ID does not match shared services workflow subscription ID."
-            echo "Requested: ${REQUESTED_SUBSCRIPTION_ID}"
-            echo "Actual: ${ACTUAL_SUBSCRIPTION_ID}"
-            exit 1
-          fi
 
       - name: Terraform Init
         working-directory: ${{ needs.resolve-region.outputs.terraform_root }}
