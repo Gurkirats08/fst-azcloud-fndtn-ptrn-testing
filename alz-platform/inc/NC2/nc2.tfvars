@@ -5,7 +5,7 @@ mainLocation = "southeastasia"
 
 nc2resourceGroups = {
   dnsRG = {
-    name     = "rg-dns-conn-prd-phi-sea-001"
+    name     = "rg-dns-conn-prd-phi-sea-002"
     location = "southeastasia"
     tags = {}
   },
