@@ -160,6 +160,29 @@ jobs:
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
+      - name: Bootstrap - Create backend resource group if missing
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
+          CONFIG="./alz-platform/${{ matrix.region }}/sharedservices/sharedservices.tfvars"
+          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
+          LOCATION=$(awk -F '"' '/^mainLocation/ {print $2}' "$CONFIG" | head -n1)
+          if [ -z "$LOCATION" ]; then
+            echo "Unable to determine RG location from $CONFIG"
+            exit 1
+          fi
+          if ! az group exists --name "$RESOURCE_GROUP" --only-show-errors; then
+            echo "Creating resource group $RESOURCE_GROUP in $LOCATION"
+            az group create \
+              --name "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --only-show-errors
+          else
+            echo "Resource group $RESOURCE_GROUP already exists."
+          fi
+
       - name: Bootstrap - Create Storage Account and Blob Container
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
