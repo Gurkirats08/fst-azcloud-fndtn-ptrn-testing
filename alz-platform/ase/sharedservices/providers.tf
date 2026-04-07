@@ -35,40 +35,50 @@ provider "azurerm" {
     }
   }
   subscription_id = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
-  skip_provider_registration = true
+  skip_provider_registration = false
   storage_use_azuread = true
 }
 
-provider "azurerm" {
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-  subscription_id = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
-  skip_provider_registration = true
-  storage_use_azuread = true
-  alias = "sharedSub"
-}
-provider "azurerm" {
-  alias = "securitySub"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-  # skip_provider_registration = true
-  storage_use_azuread = true
-  subscription_id = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
+# Register required resource providers for the subscription
+resource "azurerm_resource_provider_registration" "network" {
+  name = "Microsoft.Network"
 }
 
-provider "azurerm" {
-  alias = "connSub"
-  features {
-    resource_group {
-      prevent_deletion_if_contains_resources = false
-    }
-  }
-  storage_use_azuread = true
-  subscription_id     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
+resource "azurerm_resource_provider_registration" "managed_identity" {
+  name = "Microsoft.ManagedIdentity"
 }
+
+resource "azurerm_resource_provider_registration" "resources" {
+  name = "Microsoft.Resources"
+}
+
+resource "azurerm_resource_provider_registration" "storage" {
+  name = "Microsoft.Storage"
+}
+
+resource "azurerm_resource_provider_registration" "key_vault" {
+  name = "Microsoft.KeyVault"
+}
+
+# provider "azurerm" {
+#   alias = "securitySub"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = true
+#     }
+#   }
+#   # skip_provider_registration = true
+#   storage_use_azuread = true
+#   subscription_id = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
+# }
+
+# provider "azurerm" {
+#   alias = "connSub"
+#   features {
+#     resource_group {
+#       prevent_deletion_if_contains_resources = false
+#     }
+#   }
+#   storage_use_azuread = true
+#   subscription_id     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
+# }
