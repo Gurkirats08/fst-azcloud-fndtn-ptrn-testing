@@ -61,16 +61,6 @@ jobs:
           echo "plan_file=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
 
-  bootstrap:
-    needs: resolve-region
-    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
-    uses: ./.github/workflows/bootstrap-sharedservices.yml
-    with:
-      region: ${{ needs.resolve-region.outputs.region }}
-      environment: ${{ needs.resolve-region.outputs.environment_name }}
-      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
-    secrets: inherit
-
   terraform-plan:
     needs:
       - resolve-region
