@@ -217,10 +217,10 @@ jobs:
   terraform-apply:
     needs:
       - resolve-region
-      - approval
+      - terraform-plan
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-region.outputs.environment_name }}
-    if: needs.approval.result == 'success' && github.event.inputs.action == 'apply'
+    if: github.event.inputs.action == 'apply'
     permissions:
       id-token: write
       contents: read
