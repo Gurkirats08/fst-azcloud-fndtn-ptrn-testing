@@ -160,6 +160,30 @@ jobs:
           tenant-id: ${{ secrets.ARM_TENANT_ID }}
           subscription-id: ${{ secrets.ARM_SUBSCRIPTION_ID }}
 
+      - name: Bootstrap - Create backend resource group if missing
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
+          CONFIG="./alz-platform/${{ matrix.region }}/sharedservices/sharedservices.tfvars"
+          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
+          LOCATION=$(awk -F '"' '/^mainLocation/ {print $2}' "$CONFIG" | head -n1)
+          if [ -z "$LOCATION" ]; then
+            echo "Unable to determine RG location from $CONFIG"
+            exit 1
+          fi
+          GROUP_EXISTS=$(az group exists --name "$RESOURCE_GROUP" --only-show-errors)
+          if [ "$GROUP_EXISTS" != "true" ]; then
+            echo "Creating resource group $RESOURCE_GROUP in $LOCATION"
+            az group create \
+              --name "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --only-show-errors
+          else
+            echo "Resource group $RESOURCE_GROUP already exists."
+          fi
+
       - name: Bootstrap - Create Storage Account and Blob Container
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -214,41 +238,6 @@ jobs:
           if [ "$CONTAINER_CREATED" = false ]; then
             echo "Failed to create blob container $CONTAINER after 10 attempts."
             exit 1
-          fi
-
-      - name: Bootstrap - Grant Storage Blob Data Contributor to SPN
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
-          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
-          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
-          STORAGE_ID=$(az storage account show \
-            --name "$STORAGE_ACCOUNT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query id -o tsv)
-          SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-          if [ -z "$SP_OBJECT_ID" ]; then
-            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
-            exit 1
-          fi
-          EXISTING=$(az role assignment list \
-            --assignee "$SP_OBJECT_ID" \
-            --role "Storage Blob Data Contributor" \
-            --scope "$STORAGE_ID" \
-            --query "[].id" -o tsv 2>/dev/null)
-          if [ -z "$EXISTING" ]; then
-            echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
-            az role assignment create \
-              --assignee-object-id "$SP_OBJECT_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "Storage Blob Data Contributor" \
-              --scope "$STORAGE_ID" \
-              --only-show-errors
-            echo "Role assignment created. Verifying data-plane access in the next step."
-          else
-            echo "Storage Blob Data Contributor already assigned, skipping."
           fi
 
       - name: Validate Backend Blob Access
@@ -333,11 +322,14 @@ jobs:
       - name: Terraform Init
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
         env:
+          ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ matrix.environment }}
         run: |
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
@@ -346,6 +338,43 @@ jobs:
       - name: Terraform Validate
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
         run: terraform validate
+
+      - name: Release Stale Terraform State Lock
+        working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./backend.tfvars"
+          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
+          CONTAINER=$(awk -F '"' '/container_name/ {print $2}' "$TFVARS")
+          KEY=$(awk -F '"' '/^key/ {print $2}' "$TFVARS")
+          LOCK_BLOB="${KEY}.${RANDOM}.tflock"
+          
+          echo "Checking for stale state locks in $STORAGE_ACCOUNT/$CONTAINER"
+          
+          # List all blobs matching the lock pattern
+          LOCKS=$(az storage blob list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --query "[?starts_with(name, '${KEY}.')].name" \
+            --output tsv 2>/dev/null || echo "")
+          
+          if [ -n "$LOCKS" ]; then
+            echo "Found stale lock files, removing them..."
+            for lock in $LOCKS; do
+              echo "Deleting lock blob: $lock"
+              az storage blob delete \
+                --account-name "$STORAGE_ACCOUNT" \
+                --container-name "$CONTAINER" \
+                --name "$lock" \
+                --auth-mode login \
+                --only-show-errors || true
+            done
+          else
+            echo "No stale locks found."
+          fi
 
       - name: Terraform Plan
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices

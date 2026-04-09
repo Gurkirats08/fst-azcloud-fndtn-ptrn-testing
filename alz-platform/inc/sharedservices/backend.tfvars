@@ -1,4 +1,4 @@
-resource_group_name  = "philips-testing"
-storage_account_name = "philiactestingsea03"
+resource_group_name  = "philips-inc"
+storage_account_name = "philiactestinginc03"
 container_name       = "iac"
-key                  = "terraform-sharedservices.tfstate"
+key                  = "terraform-inc-shared.tfstate"
