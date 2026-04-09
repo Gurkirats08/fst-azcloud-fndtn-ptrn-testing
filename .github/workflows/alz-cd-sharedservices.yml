@@ -64,7 +64,6 @@ jobs:
   terraform-plan:
     needs:
       - resolve-region
-      - bootstrap
     if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
     runs-on: ubuntu-latest
     environment: ${{ needs.resolve-region.outputs.environment_name }}
