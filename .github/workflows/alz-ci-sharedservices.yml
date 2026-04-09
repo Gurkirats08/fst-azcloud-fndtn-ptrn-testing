@@ -357,11 +357,14 @@ jobs:
       - name: Terraform Init
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
         env:
+          ARM_USE_OIDC: true
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
           TF_VAR_environment: ${{ matrix.environment }}
         run: |
+          export ARM_OIDC_REQUEST_TOKEN="$ACTIONS_ID_TOKEN_REQUEST_TOKEN"
+          export ARM_OIDC_REQUEST_URL="$ACTIONS_ID_TOKEN_REQUEST_URL"
           terraform init \
             -backend-config="backend.tfvars" \
             -backend-config="use_azuread_auth=true" \
