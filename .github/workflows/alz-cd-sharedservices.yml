@@ -14,7 +14,7 @@ on:
       action:
         description: 'Terraform Action'
         required: true
-        default: 'plan'
+        default: 'apply'
         type: choice
         options:
           - plan
@@ -60,16 +60,6 @@ jobs:
           echo "tfvars_file=${GITHUB_WORKSPACE}/alz-platform/${REGION}/sharedservices/sharedservices.tfvars" >> "$GITHUB_OUTPUT"
           echo "plan_file=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
-
-  bootstrap:
-    needs: resolve-region
-    if: github.event_name == 'workflow_dispatch' && (github.ref_name == 'main' || github.ref_name == 'master')
-    uses: ./.github/workflows/bootstrap-sharedservices.yml
-    with:
-      region: ${{ needs.resolve-region.outputs.region }}
-      environment: ${{ needs.resolve-region.outputs.environment_name }}
-      expected_subscription_id: ${{ github.event.inputs.expected_subscription_id }}
-    secrets: inherit
 
   terraform-plan:
     needs:
@@ -224,19 +214,6 @@ jobs:
           name: ${{ needs.resolve-region.outputs.artifact_name }}
           path: ${{ needs.resolve-region.outputs.terraform_root }}/${{ needs.resolve-region.outputs.plan_file }}
           retention-days: 7
-
-  approval:
-    needs:
-      - resolve-region
-      - terraform-plan
-    runs-on: ubuntu-latest
-    if: needs.terraform-plan.result == 'success' && (github.event.inputs.action == 'apply' || github.event.inputs.action == 'destroy')
-    environment:
-      name: ${{ needs.resolve-region.outputs.environment_name }}
-    steps:
-      - name: Approval Checkpoint
-        run: |
-          echo "Approval granted for shared services deployment to ${{ needs.resolve-region.outputs.environment_name }}"
 
   terraform-apply:
     needs:
