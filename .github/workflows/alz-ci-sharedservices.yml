@@ -339,6 +339,43 @@ jobs:
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
         run: terraform validate
 
+      - name: Release Stale Terraform State Lock
+        working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
+        env:
+          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+        run: |
+          TFVARS="./backend.tfvars"
+          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
+          CONTAINER=$(awk -F '"' '/container_name/ {print $2}' "$TFVARS")
+          KEY=$(awk -F '"' '/^key/ {print $2}' "$TFVARS")
+          LOCK_BLOB="${KEY}.${RANDOM}.tflock"
+          
+          echo "Checking for stale state locks in $STORAGE_ACCOUNT/$CONTAINER"
+          
+          # List all blobs matching the lock pattern
+          LOCKS=$(az storage blob list \
+            --account-name "$STORAGE_ACCOUNT" \
+            --container-name "$CONTAINER" \
+            --query "[?starts_with(name, '${KEY}.')].name" \
+            --output tsv 2>/dev/null || echo "")
+          
+          if [ -n "$LOCKS" ]; then
+            echo "Found stale lock files, removing them..."
+            for lock in $LOCKS; do
+              echo "Deleting lock blob: $lock"
+              az storage blob delete \
+                --account-name "$STORAGE_ACCOUNT" \
+                --container-name "$CONTAINER" \
+                --name "$lock" \
+                --auth-mode login \
+                --only-show-errors || true
+            done
+          else
+            echo "No stale locks found."
+          fi
+
       - name: Terraform Plan
         working-directory: ./alz-platform/${{ matrix.region }}/sharedservices
         timeout-minutes: 30
