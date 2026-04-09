@@ -240,41 +240,6 @@ jobs:
             exit 1
           fi
 
-      - name: Bootstrap - Grant Storage Blob Data Contributor to SPN
-        env:
-          ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
-        run: |
-          TFVARS="./alz-platform/${{ matrix.region }}/sharedservices/backend.tfvars"
-          RESOURCE_GROUP=$(awk -F '"' '/resource_group_name/ {print $2}' "$TFVARS")
-          STORAGE_ACCOUNT=$(awk -F '"' '/storage_account_name/ {print $2}' "$TFVARS")
-          STORAGE_ID=$(az storage account show \
-            --name "$STORAGE_ACCOUNT" \
-            --resource-group "$RESOURCE_GROUP" \
-            --query id -o tsv)
-          SP_OBJECT_ID=$(az ad sp show --id "$ARM_CLIENT_ID" --query id -o tsv)
-          if [ -z "$SP_OBJECT_ID" ]; then
-            echo "ERROR: Could not resolve Service Principal object ID for client ID: $ARM_CLIENT_ID"
-            exit 1
-          fi
-          EXISTING=$(az role assignment list \
-            --assignee "$SP_OBJECT_ID" \
-            --role "Storage Blob Data Contributor" \
-            --scope "$STORAGE_ID" \
-            --query "[].id" -o tsv 2>/dev/null)
-          if [ -z "$EXISTING" ]; then
-            echo "Granting Storage Blob Data Contributor on: $STORAGE_ID"
-            az role assignment create \
-              --assignee-object-id "$SP_OBJECT_ID" \
-              --assignee-principal-type ServicePrincipal \
-              --role "Storage Blob Data Contributor" \
-              --scope "$STORAGE_ID" \
-              --only-show-errors
-            echo "Role assignment created. Verifying data-plane access in the next step."
-          else
-            echo "Storage Blob Data Contributor already assigned, skipping."
-          fi
-
       - name: Validate Backend Blob Access
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
