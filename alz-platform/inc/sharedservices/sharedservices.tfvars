@@ -9,7 +9,7 @@ subscriptionId = "f35b495f-d039-427e-9d9b-17c8bfc622b8"
 # resource group
 resourceGroups = {
   netRG = {
-    name     = "rg-net-sharedservices-inc-001"
+    name     = "rg-net-sharedservices-inc-002"
     location = "centralindia"
     tags = {
       team = "Sec-Team"
