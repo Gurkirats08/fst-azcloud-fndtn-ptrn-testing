@@ -1,27 +1,8 @@
-name: ALZ Shared Services CI
+name: ALZ Shared Services CI - Networking
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, labeled, unlabeled]
-  workflow_dispatch:
-    inputs:
-      region:
-        description: "Select shared services region/subscription"
-        required: true
-        default: ase
-        type: choice
-        options:
-          - ase
-          - inc
-      environment:
-        description: "GitHub environment to use for secrets"
-        required: true
-        default: ase-shared
-        type: string
-      expected_subscription_id:
-        description: "Expected Azure Subscription ID for safety validation"
-        required: false
-        type: string
 
 env:
   TERRAFORM_VERSION: "1.6.0"
@@ -45,21 +26,23 @@ jobs:
           
           HAS_REQUIRED_LABEL="false"
           
-          # Use regex to match label names with flexible spacing in JSON
-          if echo "$LABELS" | grep -qE '"name"\s*:\s*"(ase-shared|inc-shared)"'; then
+          # Check for networking deployment labels: <region>-platform-networking
+          if echo "$LABELS" | grep -qE '"name"\s*:\s*"[a-z0-9]+-platform-networking"'; then
             HAS_REQUIRED_LABEL="true"
           fi
           
           if [ "$HAS_REQUIRED_LABEL" = "false" ]; then
-            echo "❌ ERROR: PR must have at least one of these labels to proceed:"
-            echo "  - ase-shared (for ASE region testing)"
-            echo "  - inc-shared (for INC region testing)"
+            echo "❌ ERROR: PR must have at least one networking deployment label to proceed:"
+            echo "Valid label format: <region>-platform-networking"
+            echo "  region: alphanumeric + digits (e.g., sea1, inc1, ins1)"
+            echo "Examples: sea1-platform-networking, inc1-platform-networking, ins1-platform-networking"
             echo ""
-            echo "Please add a label to this PR before it can be merged."
+            echo "This workflow is specific to networking deployments."
+            echo "Please add the appropriate networking label to this PR."
             exit 1
           fi
           
-          echo "✅ PR has required label(s) for CI"
+          echo "✅ PR has required networking label(s) for CI"
 
   detect-regions:
     runs-on: ubuntu-latest
@@ -72,51 +55,43 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect shared services regions from PR labels
+      - name: Detect networking regions from PR labels
         id: detect
         shell: bash
         run: |
           MATRIX="[]"
           HAS_REGIONS="false"
 
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # Workflow dispatch uses manual input
-            REGION="${{ github.event.inputs.region }}"
-            ENVIRONMENT_NAME="${REGION}-shared"
-            MATRIX="[{\"region\":\"${REGION}\",\"environment\":\"${ENVIRONMENT_NAME}\"}]"
+          # Extract labels from PR and parse networking deployment labels
+          LABELS='${{ toJSON(github.event.pull_request.labels) }}'
+          echo "PR Labels: $LABELS"
+          
+          # Extract networking labels matching pattern: <region>-platform-networking
+          NETWORKING_LABELS=$(echo "$LABELS" | grep -oE '"name"\s*:\s*"([a-z0-9]+-platform-networking)"' | sed 's/.*"\([^"]*\)".*/\1/' | sort -u)
+          
+          if [ -z "$NETWORKING_LABELS" ]; then
+            echo "ERROR: PR must have at least one networking deployment label"
+            echo "Valid label format: <region>-platform-networking"
+            echo "  region: alphanumeric + digits (e.g., sea1, inc1, ins1)"
+            echo "PR has no networking labels and cannot proceed."
+            HAS_REGIONS="false"
+          else
+            # Build matrix for each detected networking label
+            MATRIX="["
+            FIRST="true"
+            for LABEL in $NETWORKING_LABELS; do
+              # Extract region prefix from label (first part before first hyphen)
+              REGION=$(echo "$LABEL" | sed 's/^\([a-z0-9]*\)-.*/\1/')
+              if [ "$FIRST" = "true" ]; then
+                MATRIX="${MATRIX}{\"region\":\"${REGION}\",\"environment\":\"${LABEL}\"}"
+                FIRST="false"
+              else
+                MATRIX="${MATRIX},{\"region\":\"${REGION}\",\"environment\":\"${LABEL}\"}"
+              fi
+            done
+            MATRIX="${MATRIX}]"
             HAS_REGIONS="true"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            # Extract labels from PR
-            LABELS='${{ toJSON(github.event.pull_request.labels) }}'
-            echo "PR Labels: $LABELS"
-            
-            HAS_ASE="false"
-            HAS_INC="false"
-            
-            # Check if PR has required labels (using regex for flexible JSON formatting)
-            if echo "$LABELS" | grep -qE '"name"\s*:\s*"ase-shared"'; then
-              HAS_ASE="true"
-            fi
-            
-            if echo "$LABELS" | grep -qE '"name"\s*:\s*"inc-shared"'; then
-              HAS_INC="true"
-            fi
-            
-            # Require at least one label
-            if [ "$HAS_ASE" = "false" ] && [ "$HAS_INC" = "false" ]; then
-              echo "ERROR: PR must have at least one label: 'ase-shared' or 'inc-shared'"
-              echo "PR has no relevant labels and cannot proceed."
-              HAS_REGIONS="false"
-            elif [ "$HAS_ASE" = "true" ] && [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"},{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
-              HAS_REGIONS="true"
-            elif [ "$HAS_ASE" = "true" ]; then
-              MATRIX="[{\"region\":\"ase\",\"environment\":\"ase-shared\"}]"
-              HAS_REGIONS="true"
-            elif [ "$HAS_INC" = "true" ]; then
-              MATRIX="[{\"region\":\"inc\",\"environment\":\"inc-shared\"}]"
-              HAS_REGIONS="true"
-            fi
+            echo "Detected networking labels: $NETWORKING_LABELS"
           fi
 
           echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
@@ -141,15 +116,26 @@ jobs:
       - name: Validate Required ARM Secrets
         env:
           ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
           ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
         run: |
           MISSING_SECRETS=""
           if [ -z "$ARM_CLIENT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_CLIENT_ID"; fi
-          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
           if [ -z "$ARM_SUBSCRIPTION_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_SUBSCRIPTION_ID"; fi
           if [ -n "$MISSING_SECRETS" ]; then
-            echo "Missing required secrets in GitHub Environment '${{ matrix.environment }}':$MISSING_SECRETS"
+            echo "Missing required environment secrets in GitHub Environment '${{ matrix.environment }}':$MISSING_SECRETS"
+            exit 1
+          fi
+
+      - name: Validate Required Repository Secrets
+        env:
+          ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+          GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
+        run: |
+          MISSING_SECRETS=""
+          if [ -z "$ARM_TENANT_ID" ]; then MISSING_SECRETS="$MISSING_SECRETS ARM_TENANT_ID"; fi
+          if [ -z "$GOLDREPO_PAT" ]; then MISSING_SECRETS="$MISSING_SECRETS GOLDREPO_PAT"; fi
+          if [ -n "$MISSING_SECRETS" ]; then
+            echo "Missing required repository secrets:$MISSING_SECRETS"
             exit 1
           fi
 
@@ -279,7 +265,7 @@ jobs:
           GOLDREPO_PAT: ${{ secrets.GOLDREPO_PAT }}
         run: |
           if [ -z "$GOLDREPO_PAT" ]; then
-            echo "Missing required secret GOLDREPO_PAT in GitHub Environment '${{ matrix.environment }}'."
+            echo "Missing required repository secret GOLDREPO_PAT."
             exit 1
           fi
           echo "GOLDREPO_PAT is set."
