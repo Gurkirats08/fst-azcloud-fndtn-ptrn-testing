@@ -53,7 +53,7 @@ module "sharedservices_vnet_module" {
 # subnets
 module "sharedservices_subnet_module" {
   for_each                  = var.sharedservicesSubnets
-  source = "../../../goldrepo/modules-hub/terraform-modules/subnet/v1.0"
+  source                    = "../../../goldrepo/modules-hub/terraform-modules/subnet/v1.0"
   resource_group_name       = var.resourceGroups["netRG"].name
   virtual_network_name      = each.value.vnet_name
   subnet_name               = each.value.name
@@ -63,6 +63,35 @@ module "sharedservices_subnet_module" {
   depends_on                = [module.resource_group, module.sharedservices_vnet_module]
   service_endpoints         = ["Microsoft.KeyVault"]
 }
+
+# Virtual WAN
+module "sharedservices_vwan_module" {
+  for_each                        = var.sharedservicesVWAN
+  source                          = "../../../goldrepo/modules-hub/terraform-modules/vwan/v1.0"
+  virtual_wan_name                = each.value.name
+  resource_group_name             = var.resourceGroups["netRG"].name
+  location                        = each.value.location
+  allow_branch_to_branch_traffic  = try(each.value.allow_branch_to_branch_traffic, false)
+  disable_vpn_encryption          = try(each.value.disable_vpn_encryption, false)
+  virtual_wan_tags                = try(each.value.tags, {})
+  depends_on                      = [module.resource_group]
+}
+
+# Virtual Hub
+module "sharedservices_vhub_module" {
+  for_each                   = var.sharedservicesVHub
+  source                     = "../../../goldrepo/modules-hub/terraform-modules/vhub"
+  name                       = each.value.name
+  resource_group_name        = var.resourceGroups["netRG"].name
+  location                   = each.value.location
+  vwan_id                    = module.sharedservices_vwan_module[each.value.vwan_key].virtual_wan_id
+  address_prefix             = each.value.address_prefix
+  create_firewall_policy     = try(each.value.create_firewall_policy, true)
+  firewall_policy_id         = try(each.value.firewall_policy_id, null)
+  vnet_connections           = try(each.value.vnet_connections, {})
+  depends_on                 = [module.sharedservices_vwan_module, module.resource_group]
+}
+
 
 #needed
 # // # route table
