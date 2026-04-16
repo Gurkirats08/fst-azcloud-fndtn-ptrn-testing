@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       region:
-        description: 'Select shared services region/subscription'
+        description: 'Select region for networking deployment'
         required: true
-        default: 'ase'
+        default: 'sea1'
         type: choice
         options:
-          - ase
-          - inc
+          - sea1
+          - inc1
+          - ins1
       action:
         description: 'Terraform Action'
         required: true
@@ -52,12 +53,24 @@ jobs:
         shell: bash
         run: |
           REGION="${{ github.event.inputs.region }}"
-          ENVIRONMENT_NAME="${REGION}-shared"
+          case "${REGION}" in
+            sea1)
+              REGION_DIR="sea1"
+              ;;
+            inc1|ins1)
+              REGION_DIR="inc1"
+              ;;
+            *)
+              REGION_DIR="${REGION}"
+              ;;
+          esac
+          ENVIRONMENT_NAME="${REGION}-platform-networking"
 
           echo "region=${REGION}" >> "$GITHUB_OUTPUT"
+          echo "region_dir=${REGION_DIR}" >> "$GITHUB_OUTPUT"
           echo "environment_name=${ENVIRONMENT_NAME}" >> "$GITHUB_OUTPUT"
-          echo "terraform_root=./alz-platform/${REGION}/sharedservices" >> "$GITHUB_OUTPUT"
-          echo "tfvars_file=${GITHUB_WORKSPACE}/alz-platform/${REGION}/sharedservices/sharedservices.tfvars" >> "$GITHUB_OUTPUT"
+          echo "terraform_root=./alz-platform/${REGION_DIR}/sharedservices" >> "$GITHUB_OUTPUT"
+          echo "tfvars_file=${GITHUB_WORKSPACE}/alz-platform/${REGION_DIR}/sharedservices/sharedservices.tfvars" >> "$GITHUB_OUTPUT"
           echo "plan_file=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
           echo "artifact_name=tfplan-sharedservices-${REGION}" >> "$GITHUB_OUTPUT"
 
