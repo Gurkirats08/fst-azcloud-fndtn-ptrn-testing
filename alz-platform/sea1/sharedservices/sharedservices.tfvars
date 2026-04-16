@@ -66,7 +66,6 @@ network_watcher_name = "NetworkWatcher_southeastasia"
 # virtual network
 sharedservicesVirtualNetworks = {
   vnet1 = {
-    resourceGroupName  = "rg-net-sharedservices-sea-001"
     subscriptionId     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
     VirtualNetworkName = "vnet-sharedservices-sea-001"
     address_space      = "10.64.0.0/23"
@@ -74,7 +73,6 @@ sharedservicesVirtualNetworks = {
     location           = "southeastasia"
   }
   vnet2 = {
-    resourceGroupName  = "rg-net-sharedservices-sea-001"
     subscriptionId     = "0e587ef7-4069-4a5c-ab6e-2132c83dfbf1"
     VirtualNetworkName = "vnet-sharedservices-sea-002"
     address_space      = "10.65.0.0/23"
@@ -85,7 +83,6 @@ sharedservicesVirtualNetworks = {
 
 sharedservicesSubnets = {
   Gatewaysubnet = {
-    resourceGroupName      = "rg-net-sharedservices-sea-001"
     vnet_key               = "vnet1"
     name                   = "gatewaysubnet"
     addressPrefix          = "10.64.0.0/25"
@@ -95,7 +92,6 @@ sharedservicesSubnets = {
     subscriptionId         = "3e3a2118-a39a-4ff7-9df7-104c3e1e611a"
   },
   AzureFirewallSubnet = {
-    resourceGroupName      = "rg-net-sharedservices-sea-001"
     vnet_key               = "vnet1"
     name                   = "AzureFirewallSubnet"
     addressPrefix          = "10.64.0.128/25"
@@ -105,7 +101,6 @@ sharedservicesSubnets = {
     subscriptionId         = "3e3a2118-a39a-4ff7-9df7-104c3e1e611a"
   }
   snet1 = {
-    resourceGroupName      = "rg-net-sharedservices-sea-001"
     vnet_key               = "vnet1"
     name                   = "snet1-testing"
     addressPrefix          = "10.64.1.0/25"
@@ -116,7 +111,6 @@ sharedservicesSubnets = {
   }
 
    snet2 = {
-    resourceGroupName      = "rg-net-sharedservices-sea-001"
     vnet_key               = "vnet2"
     name                   = "snet2-testing"
     addressPrefix          = "10.65.1.0/25"

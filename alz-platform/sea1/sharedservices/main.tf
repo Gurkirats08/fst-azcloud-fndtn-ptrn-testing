@@ -42,7 +42,7 @@ module "sharedservices_vnet_module" {
   for_each                     = var.sharedservicesVirtualNetworks
   source = "../../../goldrepo/modules-hub/terraform-modules/virtualnetwork/v1.0"
   virtual_network_name         = each.value.VirtualNetworkName
-  resource_group_name          = each.value.resourceGroupName
+  resource_group_name          = var.resourceGroups["netRG"].name
   location                     = var.mainLocation
   address_space                = [each.value.address_space]
   tags                         = { environment = var.environment }
@@ -54,7 +54,7 @@ module "sharedservices_vnet_module" {
 module "sharedservices_subnet_module" {
   for_each                  = var.sharedservicesSubnets
   source = "../../../goldrepo/modules-hub/terraform-modules/subnet/v1.0"
-  resource_group_name       = each.value.resourceGroupName
+  resource_group_name       = var.resourceGroups["netRG"].name
   virtual_network_name      = each.value.vnet_name
   subnet_name               = each.value.name
   address_prefixes          = [each.value.addressPrefix]

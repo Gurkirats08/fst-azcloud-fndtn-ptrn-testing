@@ -38,26 +38,6 @@ provider "azurerm" {
   storage_use_azuread = true
 }
 
-# Register required resource providers for the subscription
-resource "azurerm_resource_provider_registration" "network" {
-  name = "Microsoft.Network"
-}
-
-resource "azurerm_resource_provider_registration" "managed_identity" {
-  name = "Microsoft.ManagedIdentity"
-}
-
-resource "azurerm_resource_provider_registration" "resources" {
-  name = "Microsoft.Resources"
-}
-
-resource "azurerm_resource_provider_registration" "storage" {
-  name = "Microsoft.Storage"
-}
-
-resource "azurerm_resource_provider_registration" "key_vault" {
-  name = "Microsoft.KeyVault"
-}
 
 # provider "azurerm" {
 #   alias = "securitySub"
