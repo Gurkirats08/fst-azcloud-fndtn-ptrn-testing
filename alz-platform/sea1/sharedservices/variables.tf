@@ -82,7 +82,6 @@ variable "network_watcher_rg" {
 variable "sharedservicesVirtualNetworks" {
   description = "Virtual networks"
   type = map(object({
-    resourceGroupName  = string
     subscriptionId     = string
     VirtualNetworkName = string
     address_space      = string
@@ -96,7 +95,6 @@ variable "sharedservicesVirtualNetworks" {
 variable "sharedservicesSubnets" {
   description = "The subnets with their properties."
   type = map(object({
-    resourceGroupName      = string
     vnet_key               = string
     name                   = string
     addressPrefix          = string
