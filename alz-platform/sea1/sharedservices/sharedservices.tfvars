@@ -122,6 +122,58 @@ sharedservicesSubnets = {
 }
 
 sharedservicesuan = "ual-sharedservices-sea-002"
+
+# Virtual WAN Configuration
+sharedservicesVWAN = {
+  vwan1 = {
+    name                           = "vwan-sharedservices-sea-001"
+    location                       = "southeastasia"
+    allow_branch_to_branch_traffic = true
+    disable_vpn_encryption         = false
+    tags = {
+      environment = "networking"
+    }
+  }
+}
+
+# Virtual Hub Configuration
+sharedservicesVHub = {
+  vhub1 = {
+    name                   = "vhub-sharedservices-sea-001"
+    location               = "southeastasia"
+    vwan_key               = "vwan1"
+    address_prefix         = "10.64.0.0/25"
+    create_firewall_policy = true
+    firewall_policy_id     = null
+    vnet_connections = {
+      "vnet1-connection" = {
+        vnet_key = "vnet1"
+      }
+    }
+    tags = {
+      environment = "sharedservices"
+      team        = "Sec-Team"
+    }
+  }
+  vhub2 = {
+    name                   = "vhub-sharedservices-sea-002"
+    location               = "southeastasia"
+    vwan_key               = "vwan1"
+    address_prefix         = "10.65.0.0/25"
+    create_firewall_policy = true
+    firewall_policy_id     = null
+    vnet_connections = {
+      "vnet2-connection" = {
+        vnet_key = "vnet2"
+      }
+    }
+    tags = {
+      environment = "sharedservices"
+      team        = "Sec-Team"
+    }
+  }
+}
+
 ###-----------------------------------------------------------------------------------------------------------------------------------------
 
 #--------------------------------------------------------------------------

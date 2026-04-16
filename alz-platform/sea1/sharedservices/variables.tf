@@ -520,6 +520,39 @@ variable "sharedservicesSubnets" {
 
 ####-------------------------------------------------------------------------------------------------------
 
+# Virtual WAN
+variable "sharedservicesVWAN" {
+  description = "Virtual WAN configuration"
+  type = map(object({
+    name                           = string
+    location                       = string
+    allow_branch_to_branch_traffic = optional(bool)
+    disable_vpn_encryption         = optional(bool)
+    tags                           = optional(map(string))
+  }))
+  default = {}
+}
+
+# Virtual Hub
+variable "sharedservicesVHub" {
+  description = "Virtual Hub configuration"
+  type = map(object({
+    name                   = string
+    location               = string
+    vwan_key               = string
+    address_prefix         = string
+    create_firewall_policy = optional(bool)
+    firewall_policy_id     = optional(string)
+    vnet_connections = optional(map(object({
+      vnet_key = string
+    })))
+    tags = optional(map(string))
+  }))
+  default = {}
+}
+
+####-------------------------------------------------------------------------------------------------------
+
 
 
 
