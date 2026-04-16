@@ -544,7 +544,7 @@ variable "sharedservicesVHub" {
     create_firewall_policy = optional(bool)
     firewall_policy_id     = optional(string)
     vnet_connections = optional(map(object({
-      vnet_id = string
+      vnet_key = string
     })))
     tags = optional(map(string))
   }))

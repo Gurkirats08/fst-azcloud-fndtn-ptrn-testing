@@ -147,15 +147,15 @@ sharedservicesVHub = {
     firewall_policy_id     = null
     vnet_connections = {
       "vnet1-connection" = {
-        vnet_id = module.sharedservices_vnet_module["vnet1"].id
+        vnet_key = "vnet1"
       }
     }
     tags = {
       environment = "sharedservices"
       team        = "Sec-Team"
     }
-  },
-    vhub2 = {
+  }
+  vhub2 = {
     name                   = "vhub-sharedservices-sea-002"
     location               = "southeastasia"
     vwan_key               = "vwan1"
@@ -163,9 +163,8 @@ sharedservicesVHub = {
     create_firewall_policy = true
     firewall_policy_id     = null
     vnet_connections = {
-  
       "vnet2-connection" = {
-        vnet_id = module.sharedservices_vnet_module["vnet2"].id
+        vnet_key = "vnet2"
       }
     }
     tags = {

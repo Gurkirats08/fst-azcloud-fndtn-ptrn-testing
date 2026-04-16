@@ -88,7 +88,9 @@ module "sharedservices_vhub_module" {
   address_prefix             = each.value.address_prefix
   create_firewall_policy     = try(each.value.create_firewall_policy, true)
   firewall_policy_id         = try(each.value.firewall_policy_id, null)
-  vnet_connections           = try(each.value.vnet_connections, {})
+  vnet_connections           = {for conn_key, conn in try(each.value.vnet_connections, {}) : conn_key => {
+    vnet_id                  = module.sharedservices_vnet_module[conn.vnet_key].id
+  } }
   depends_on                 = [module.sharedservices_vwan_module, module.resource_group]
 }
 
