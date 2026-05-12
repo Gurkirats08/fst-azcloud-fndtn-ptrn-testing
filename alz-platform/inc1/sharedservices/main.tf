@@ -3,14 +3,14 @@ data "azurerm_client_config" "current" {}
 #needed
 module "resource_group" {
   for_each            = var.resourceGroups
-  source              = "../../../goldrepo/modules-hub/terraform-modules/resourcegroup/v1.0"
+  source              = "Azure/resource-group/azurerm"
   location            = each.value.location
   resource_group_name = each.value.name
   tags                = each.value.tags
 }
 
 module "sharedservices_user_assigned_identity" {
-  source = "../../../goldrepo/modules-hub/terraform-modules/userassignedidentity/v1.0"
+  source = "Azure/user-assigned-identity/azurerm"
   name                = var.sharedservicesuan
   location            = var.mainLocation
   resource_group_name = var.resourceGroups["netRG"].name
@@ -40,7 +40,7 @@ module "sharedservices_user_assigned_identity" {
 # virtual networks
 module "sharedservices_vnet_module" {
   for_each                     = var.sharedservicesVirtualNetworks
-  source = "../../../goldrepo/modules-hub/terraform-modules/virtualnetwork/v1.0"
+  source = "Azure/virtual-network/azurerm"
   virtual_network_name         = each.value.VirtualNetworkName
   resource_group_name          = each.value.resourceGroupName
   location                     = var.mainLocation
@@ -53,7 +53,7 @@ module "sharedservices_vnet_module" {
 # subnets
 module "sharedservices_subnet_module" {
   for_each                  = var.sharedservicesSubnets
-  source = "../../../goldrepo/modules-hub/terraform-modules/subnet/v1.0"
+  source = "Azure/subnet/azurerm"
   resource_group_name       = each.value.resourceGroupName
   virtual_network_name      = each.value.vnet_name
   subnet_name               = each.value.name
