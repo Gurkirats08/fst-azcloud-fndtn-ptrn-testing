@@ -95,7 +95,6 @@ variable "sharedservicesVirtualNetworks" {
 variable "sharedservicesSubnets" {
   description = "The subnets with their properties."
   type = map(object({
-    vnet_key               = string
     name                   = string
     addressPrefix          = string
     vnet_name              = string
